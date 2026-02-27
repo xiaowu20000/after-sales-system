@@ -1,15 +1,17 @@
 import {
   ConnectedSocket,
-  ForbiddenException,
-  HttpException,
   MessageBody,
-  NotFoundException,
   OnGatewayConnection,
   OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import {
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { MessageType } from '../messages/entities/message.entity';

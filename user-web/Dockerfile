@@ -2,7 +2,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+# 使用 npm install 以避免必须存在 package-lock.json 的限制
+RUN npm install
 
 COPY . .
 RUN npm run build

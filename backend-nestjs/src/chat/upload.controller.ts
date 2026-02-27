@@ -47,7 +47,7 @@ export class UploadController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: async (_, __, cb) => {
+        destination: async (_: unknown, __: unknown, cb: (error: Error | null, destination: string) => void) => {
           try {
             const folder = getDateFolder();
             const target = join(process.cwd(), 'uploads', folder);
@@ -57,12 +57,12 @@ export class UploadController {
             cb(error as Error, '');
           }
         },
-        filename: (_, file, cb) => {
+        filename: (_: unknown, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
           const suffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           cb(null, `${suffix}${extname(file.originalname)}`);
         },
       }),
-      fileFilter: (_, file, cb) => {
+      fileFilter: (_: unknown, file: Express.Multer.File, cb: (error: Error | null, acceptFile: boolean) => void) => {
         if (!file.mimetype.startsWith('image/')) {
           cb(new BadRequestException('Only image uploads are allowed') as any, false);
           return;
