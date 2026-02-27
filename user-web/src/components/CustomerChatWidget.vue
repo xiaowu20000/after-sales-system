@@ -1,5 +1,13 @@
 <template>
-  <div class="chat-container">
+  <div 
+    class="chat-container"
+    :class="{ 'drag-over': isDragOver }"
+    @dragover.prevent="handleDragOver"
+    @dragenter.prevent="handleDragEnter"
+    @dragleave.prevent="handleDragLeave"
+    @drop.prevent="handleDrop"
+    @paste="handlePaste"
+  >
     <header class="chat-header">
       <div class="header-content">
         <div class="header-info">
@@ -15,6 +23,17 @@
         </div>
       </div>
     </header>
+
+    <div v-if="isDragOver" class="drag-overlay">
+      <div class="drag-overlay-content">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <p>释放以上传图片</p>
+      </div>
+    </div>
 
     <div ref="messageContainerRef" class="message-list">
       <div
@@ -95,6 +114,7 @@ const messageContainerRef = ref(null);
 const socketRef = ref(null);
 const lightboxVisible = ref(false);
 const lightboxUrl = ref('');
+const isDragOver = ref(false);
 
 const statusText = computed(() => (socketRef.value?.connected ? 'Connected' : 'Connecting...'));
 
@@ -194,9 +214,21 @@ function sendText() {
   textValue.value = '';
 }
 
-async function onSelectImage(event) {
-  const file = event.target.files?.[0];
+// 处理图片文件（通用函数）
+async function handleImageFile(file) {
   if (!file) return;
+  
+  // 检查文件类型
+  if (!file.type.startsWith('image/')) {
+    hintText.value = 'Please select an image file';
+    return;
+  }
+
+  // 检查文件大小（限制为 10MB）
+  if (file.size > 10 * 1024 * 1024) {
+    hintText.value = 'Image size should be less than 10MB';
+    return;
+  }
 
   try {
     hintText.value = '';
@@ -208,8 +240,64 @@ async function onSelectImage(event) {
     });
   } catch (error) {
     hintText.value = 'Image send failed. Please retry.';
-  } finally {
-    event.target.value = '';
+  }
+}
+
+async function onSelectImage(event) {
+  const file = event.target.files?.[0];
+  await handleImageFile(file);
+  event.target.value = '';
+}
+
+// 拖拽处理
+function handleDragOver(event) {
+  event.preventDefault();
+  if (!isDragOver.value) {
+    isDragOver.value = true;
+  }
+}
+
+function handleDragEnter(event) {
+  event.preventDefault();
+  isDragOver.value = true;
+}
+
+function handleDragLeave(event) {
+  event.preventDefault();
+  // 只有当离开整个容器时才取消拖拽状态
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    isDragOver.value = false;
+  }
+}
+
+async function handleDrop(event) {
+  event.preventDefault();
+  isDragOver.value = false;
+
+  const files = Array.from(event.dataTransfer?.files || []);
+  const imageFile = files.find(file => file.type.startsWith('image/'));
+  
+  if (imageFile) {
+    await handleImageFile(imageFile);
+  } else if (files.length > 0) {
+    hintText.value = 'Please drop an image file';
+  }
+}
+
+// 粘贴处理
+async function handlePaste(event) {
+  const items = event.clipboardData?.items || [];
+  
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.type.startsWith('image/')) {
+      event.preventDefault();
+      const file = item.getAsFile();
+      if (file) {
+        await handleImageFile(file);
+      }
+      break;
+    }
   }
 }
 
@@ -277,6 +365,41 @@ onMounted(() => {
   flex-direction: column;
   height: 100vh;
   background: #f5f7fa;
+  position: relative;
+}
+
+.chat-container.drag-over {
+  background: #e3f2fd;
+}
+
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(30, 136, 229, 0.1);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border: 3px dashed #1e88e5;
+  border-radius: 12px;
+  margin: 8px;
+}
+
+.drag-overlay-content {
+  text-align: center;
+  color: #1e88e5;
+}
+
+.drag-overlay-content svg {
+  margin-bottom: 16px;
+  opacity: 0.8;
+}
+
+.drag-overlay-content p {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
 }
 
 .chat-header {
