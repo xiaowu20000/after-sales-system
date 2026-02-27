@@ -6,7 +6,24 @@
         <text class="user-subtitle" v-if="userEmail && userEmail !== getUserDisplayName()">{{ userEmail }}</text>
       </view>
       <view class="top-actions">
-        <switch :checked="isBlacklisted" @change="onToggleBlacklist" color="#fa5151" />
+        <view class="menu-btn" @click.stop="showActionMenu = !showActionMenu">
+          <text class="menu-icon">⋮</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 操作菜单 -->
+    <view v-if="showActionMenu" class="action-menu-mask" @click="showActionMenu = false">
+      <view class="action-menu" @click.stop>
+        <view class="action-menu-item" @click="toggleBlacklist">
+          <text class="action-menu-text">{{ isBlacklisted ? '移除黑名单' : '加入黑名单' }}</text>
+        </view>
+        <view class="action-menu-item danger" @click="handleDeleteUser">
+          <text class="action-menu-text">删除用户</text>
+        </view>
+        <view class="action-menu-item" @click="showActionMenu = false">
+          <text class="action-menu-text">取消</text>
+        </view>
       </view>
     </view>
 
@@ -120,6 +137,7 @@ const scrollTop = ref(0);
 const userEmail = ref('');
 const showUserMenuDialog = ref(false);
 const editRemark = ref('');
+const showActionMenu = ref(false);
 
 // 从本地存储加载用户备注
 function loadUserRemark() {
@@ -173,6 +191,7 @@ function getUserDisplayName() {
 
 // 删除用户
 async function handleDeleteUser() {
+  showActionMenu.value = false;
   uni.showModal({
     title: '确认删除',
     content: '确定要删除此用户吗？此操作不可恢复！',
@@ -247,9 +266,10 @@ async function loadHistory() {
         ...item,
         localKey: toLocalKey(item, index),
       }));
-    nextTick(() => {
+    // 延迟滚动到底部，确保 DOM 已渲染
+    setTimeout(() => {
       scrollToBottom();
-    });
+    }, 200);
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
@@ -294,8 +314,9 @@ function useQuickPhrase(item) {
   showQuickPanel.value = false;
 }
 
-async function onToggleBlacklist(event) {
-  const value = Boolean(event.detail.value);
+async function toggleBlacklist() {
+  showActionMenu.value = false;
+  const value = !isBlacklisted.value;
   try {
     await httpPatch(`/users/${peerId.value}`, { isBlacklisted: value });
     isBlacklisted.value = value;
@@ -709,5 +730,66 @@ onUnload(() => {
 .dialog-btn.danger {
   background: #fa5151;
   color: #fff;
+}
+
+.menu-btn {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8rpx;
+}
+
+.menu-btn:active {
+  background: #f5f5f5;
+}
+
+.menu-icon {
+  font-size: 40rpx;
+  color: #191919;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.action-menu-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 2000;
+}
+
+.action-menu {
+  position: absolute;
+  top: 120rpx;
+  right: 32rpx;
+  width: 320rpx;
+  background: #fff;
+  border-radius: 12rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.action-menu-item {
+  padding: 32rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  text-align: center;
+}
+
+.action-menu-item:active {
+  background: #f5f5f5;
+}
+
+.action-menu-item:last-child {
+  border-bottom: none;
+}
+
+.action-menu-item.danger .action-menu-text {
+  color: #fa5151;
+}
+
+.action-menu-text {
+  font-size: 30rpx;
+  color: #191919;
 }
 </style>

@@ -281,19 +281,98 @@ function readFileContent(filePath) {
 
 // 清除缓存
 function clearCache() {
+  uni.showActionSheet({
+    itemList: ['清除应用缓存', '清除聊天记录', '清除全部'],
+    success: (res) => {
+      if (res.tapIndex === 0) {
+        // 清除应用缓存（除了认证信息和聊天记录）
+        clearAppCache();
+      } else if (res.tapIndex === 1) {
+        // 清除聊天记录
+        clearChatHistory();
+      } else if (res.tapIndex === 2) {
+        // 清除全部
+        clearAllCache();
+      }
+    }
+  });
+}
+
+// 清除应用缓存
+function clearAppCache() {
   uni.showModal({
     title: '确认清除',
-    content: '确定要清除所有缓存数据吗？',
+    content: '确定要清除应用缓存吗？',
     success: (res) => {
       if (res.confirm) {
         try {
-          // 清除所有本地存储（除了认证信息）
+          const token = uni.getStorageSync('user_token');
+          const user = uni.getStorageSync('user_info');
+          const userRemarks = uni.getStorageSync('user_remarks');
+          
+          uni.clearStorageSync();
+          
+          // 恢复认证信息和用户备注
+          if (token) {
+            uni.setStorageSync('user_token', token);
+          }
+          if (user) {
+            uni.setStorageSync('user_info', user);
+          }
+          if (userRemarks) {
+            uni.setStorageSync('user_remarks', userRemarks);
+          }
+          
+          uni.showToast({ title: '缓存已清除', icon: 'success' });
+        } catch (error) {
+          uni.showToast({ title: '清除失败', icon: 'none' });
+        }
+      }
+    }
+  });
+}
+
+// 清除聊天记录
+function clearChatHistory() {
+  uni.showModal({
+    title: '确认清除',
+    content: '确定要清除所有聊天记录吗？此操作不可恢复！',
+    confirmColor: '#fa5151',
+    success: (res) => {
+      if (res.confirm) {
+        try {
+          // 清除聊天相关的本地存储
+          const keys = uni.getStorageInfoSync().keys;
+          keys.forEach(key => {
+            if (key.startsWith('chat_') || key.startsWith('message_') || key === 'user_remarks') {
+              uni.removeStorageSync(key);
+            }
+          });
+          
+          uni.showToast({ title: '聊天记录已清除', icon: 'success' });
+        } catch (error) {
+          uni.showToast({ title: '清除失败', icon: 'none' });
+        }
+      }
+    }
+  });
+}
+
+// 清除全部
+function clearAllCache() {
+  uni.showModal({
+    title: '确认清除',
+    content: '确定要清除所有缓存和聊天记录吗？此操作不可恢复！',
+    confirmColor: '#fa5151',
+    success: (res) => {
+      if (res.confirm) {
+        try {
           const token = uni.getStorageSync('user_token');
           const user = uni.getStorageSync('user_info');
           
           uni.clearStorageSync();
           
-          // 恢复认证信息
+          // 只恢复认证信息
           if (token) {
             uni.setStorageSync('user_token', token);
           }
@@ -301,7 +380,7 @@ function clearCache() {
             uni.setStorageSync('user_info', user);
           }
           
-          uni.showToast({ title: '缓存已清除', icon: 'success' });
+          uni.showToast({ title: '全部缓存已清除', icon: 'success' });
         } catch (error) {
           uni.showToast({ title: '清除失败', icon: 'none' });
         }
