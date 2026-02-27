@@ -25,9 +25,9 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
-      // 允许 localhost 开发环境
+      // 允许 localhost 开发环境（始终允许，方便本地开发）
       const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
-      if (isLocalhost && !isProduction) {
+      if (isLocalhost) {
         callback(null, true);
         return;
       }
