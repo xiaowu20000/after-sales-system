@@ -81,12 +81,22 @@ export class AuthService implements OnModuleInit {
       },
     });
 
-    await transporter.sendMail({
-      from: mailConfig.fromEmail,
-      to: email,
-      subject: 'After Sales Register Code',
-      text: `Your verification code is ${code}. It expires in 10 minutes.`,
-    });
+    try {
+      await transporter.sendMail({
+        from: mailConfig.fromEmail,
+        to: email,
+        subject: 'After Sales Register Code',
+        text: `Your verification code is ${code}. It expires in 10 minutes.`,
+      });
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Unknown error';
+      if (errorMessage.includes('535') || errorMessage.includes('Login fail')) {
+        throw new BadRequestException(
+          '邮件服务配置错误：请检查 SMTP 用户名和授权码是否正确。QQ 邮箱需要使用授权码而不是密码。',
+        );
+      }
+      throw new BadRequestException(`发送邮件失败: ${errorMessage}`);
+    }
 
     return { success: true };
   }
