@@ -31,6 +31,12 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
+      // 允许服务器 IP 地址（用于部署的前端页面）
+      const isServerIP = origin.includes('107.174.35.205') || origin.includes('chat.google-banana.com');
+      if (isServerIP) {
+        callback(null, true);
+        return;
+      }
       if (corsOrigins.length === 0 || corsOrigins.includes(origin)) {
         callback(null, true);
         return;
