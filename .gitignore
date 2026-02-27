@@ -1,0 +1,21 @@
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+!.env.example
+
+# Root deploy outputs
+deploy/.env
+deploy/data/
+deploy/certs/
+
+# Node projects
+**/node_modules
+**/dist
+**/.vite
+**/.cache
+
+# IDE
+.idea/
+.vscode/
