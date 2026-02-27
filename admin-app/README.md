@@ -6,7 +6,9 @@
    - `npm install`
 2. Configure backend base URL in:
    - `config/index.js`
-3. Run in HBuilderX.
+3. Configure admin login initial defaults in:
+   - `config/index.js` (`ADMIN_INIT_EMAIL`, `ADMIN_INIT_PASSWORD`)
+4. Run in HBuilderX.
 
 ## Features
 

@@ -187,12 +187,18 @@ export class AuthService implements OnModuleInit {
       return;
     }
 
-    const email = 'admin@example.com';
+    const email = (process.env.INIT_ADMIN_EMAIL || 'admin@example.com')
+      .trim()
+      .toLowerCase();
+    const initPassword = process.env.INIT_ADMIN_PASSWORD || 'Admin123456';
+    if (initPassword.length < 6) {
+      throw new Error('INIT_ADMIN_PASSWORD must be at least 6 characters');
+    }
     const existing = await this.usersRepository.findOne({ where: { email } });
     if (existing) {
       return;
     }
-    const passwordHash = await hash('Admin123456', 10);
+    const passwordHash = await hash(initPassword, 10);
     const admin = this.usersRepository.create({
       email,
       passwordHash,

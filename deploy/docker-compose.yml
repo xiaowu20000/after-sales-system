@@ -35,6 +35,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      INIT_ADMIN_EMAIL: ${INIT_ADMIN_EMAIL}
+      INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD}
     volumes:
       - ./data/uploads:/app/uploads
 
@@ -53,6 +55,6 @@ services:
       - backend
       - user-web
     ports:
-      - "80:80"
+      - "${INTERNAL_PORT}:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro

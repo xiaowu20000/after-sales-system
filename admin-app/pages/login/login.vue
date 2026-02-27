@@ -5,18 +5,19 @@
       <input v-model="email" class="input" placeholder="Email" />
       <input v-model="password" class="input" placeholder="Password" password />
       <button class="btn" @click="submit">Login</button>
-      <text class="hint">Default admin: admin@example.com / Admin123456</text>
+      <text class="hint">Init admin is configurable in config/index.js</text>
     </view>
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue';
+import { ADMIN_INIT_EMAIL, ADMIN_INIT_PASSWORD } from '../../config';
 import { setAuth } from '../../utils/auth';
 import { httpPost } from '../../utils/http';
 
-const email = ref('admin@example.com');
-const password = ref('Admin123456');
+const email = ref(ADMIN_INIT_EMAIL);
+const password = ref(ADMIN_INIT_PASSWORD);
 
 async function submit() {
   try {

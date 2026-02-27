@@ -17,9 +17,10 @@ mkdir -p "${ROOT_DIR}/deploy/data/postgres"
 mkdir -p "${ROOT_DIR}/deploy/data/uploads"
 
 chmod +x "${ROOT_DIR}/scripts/deploy.sh"
+chmod +x "${ROOT_DIR}/scripts/init-deploy.sh"
 
 echo "[INFO] Server init done."
 echo "[INFO] Next:"
-echo "  1) cp deploy/.env.example deploy/.env"
-echo "  2) edit deploy/.env"
+echo "  1) ./scripts/init-deploy.sh <domain> <internal-port> <db-password> <jwt-secret> <admin-email> <admin-password>"
+echo "  2) copy deploy/host.nginx.<domain>.conf to host nginx and reload"
 echo "  3) ./scripts/deploy.sh"

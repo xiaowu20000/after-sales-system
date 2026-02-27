@@ -18,9 +18,11 @@ DB_USERNAME=postgres
 DB_PASSWORD=postgres
 DB_DATABASE=after_sales
 NODE_ENV=production
-CORS_ORIGINS=https://admin.example.com,https://user.example.com
+CORS_ORIGINS=https://chat.google-banana.com
 JWT_SECRET=change_me
 JWT_EXPIRES_IN=7d
+INIT_ADMIN_EMAIL=admin@example.com
+INIT_ADMIN_PASSWORD=Admin123456
 ```
 
 `DB_TYPE` supports `postgres` and `mysql`.
@@ -42,8 +44,8 @@ npm run start:dev
 - `POST /auth/register`
 
 Default seeded admin:
-- email: `admin@example.com`
-- password: `Admin123456`
+- email: from `INIT_ADMIN_EMAIL` (default `admin@example.com`)
+- password: from `INIT_ADMIN_PASSWORD` (default `Admin123456`)
 
 ### Admin Mail Config (ADMIN token required)
 
