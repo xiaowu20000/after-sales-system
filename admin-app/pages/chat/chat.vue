@@ -6,7 +6,6 @@
         <text class="user-subtitle" v-if="userEmail && userEmail !== getUserDisplayName()">{{ userEmail }}</text>
       </view>
       <view class="top-actions">
-        <text class="action-link" @click="openCleanupAction">清理图片</text>
         <switch :checked="isBlacklisted" @change="onToggleBlacklist" color="#fa5151" />
       </view>
     </view>
@@ -91,6 +90,9 @@
           <view class="dialog-btn" @click="showUserMenuDialog = false">取消</view>
           <view class="dialog-btn primary" @click="saveRemark">保存</view>
         </view>
+        <view class="dialog-danger-zone">
+          <view class="dialog-btn danger" @click="handleDeleteUser">删除用户</view>
+        </view>
       </view>
     </view>
   </view>
@@ -167,6 +169,28 @@ function getUserDisplayName() {
     return userEmail.value;
   }
   return `User #${peerId.value}`;
+}
+
+// 删除用户
+async function handleDeleteUser() {
+  uni.showModal({
+    title: '确认删除',
+    content: '确定要删除此用户吗？此操作不可恢复！',
+    confirmColor: '#fa5151',
+    success: async (res) => {
+      if (res.confirm) {
+        try {
+          await httpDelete(`/users/${peerId.value}`);
+          uni.showToast({ title: '用户已删除', icon: 'success' });
+          setTimeout(() => {
+            uni.navigateBack();
+          }, 1500);
+        } catch (error) {
+          uni.showToast({ title: '删除失败', icon: 'none' });
+        }
+      }
+    }
+  });
 }
 
 function showUserMenu() {
@@ -336,28 +360,6 @@ async function chooseAndSendImage() {
   }
 }
 
-function openCleanupAction() {
-  uni.showActionSheet({
-    itemList: ['3天前', '7天前', '15天前'],
-    success: async (res) => {
-      const mapping = [3, 7, 15];
-      const days = mapping[res.tapIndex] || 7;
-      await cleanupOldUploads(days);
-    },
-  });
-}
-
-async function cleanupOldUploads(days) {
-  try {
-    const result = await httpDelete(`/upload/cleanup?days=${days}`);
-    uni.showToast({
-      title: `已删除 ${result.removedFolders} 个文件夹`,
-      icon: 'none',
-    });
-  } catch (error) {
-    uni.showToast({ title: '清理失败', icon: 'none' });
-  }
-}
 
 function bindSocket() {
   const socket = initSocket(adminId);
@@ -695,6 +697,17 @@ onUnload(() => {
 
 .dialog-btn.primary {
   background: #1e88e5;
+  color: #fff;
+}
+
+.dialog-danger-zone {
+  margin-top: 32rpx;
+  padding-top: 32rpx;
+  border-top: 1rpx solid #e5e5e5;
+}
+
+.dialog-btn.danger {
+  background: #fa5151;
   color: #fff;
 }
 </style>
