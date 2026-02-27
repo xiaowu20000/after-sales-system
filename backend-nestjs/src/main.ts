@@ -25,6 +25,12 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
+      // 允许 localhost 开发环境
+      const isLocalhost = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+      if (isLocalhost && !isProduction) {
+        callback(null, true);
+        return;
+      }
       if (corsOrigins.length === 0 || corsOrigins.includes(origin)) {
         callback(null, true);
         return;
