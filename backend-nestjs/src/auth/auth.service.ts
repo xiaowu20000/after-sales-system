@@ -83,9 +83,9 @@ export class AuthService implements OnModuleInit {
 
     try {
       await transporter.sendMail({
-        from: mailConfig.fromEmail,
+        from: `Nano Banana Pro <${mailConfig.fromEmail}>`,
         to: email,
-        subject: 'After Sales Register Code',
+        subject: 'Nano Banana Pro',
         text: `Your verification code is ${code}. It expires in 10 minutes.`,
       });
     } catch (error: any) {
