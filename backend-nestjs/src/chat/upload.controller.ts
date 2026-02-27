@@ -88,7 +88,12 @@ export class UploadController {
 
     // 使用 X-Forwarded-Proto 和 Host 头来构建正确的 URL（支持反向代理）
     const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
-    const host = req.get('host') || req.get('x-forwarded-host') || 'localhost';
+    let host = req.get('host') || req.get('x-forwarded-host') || 'localhost';
+    // 如果 Host 头不包含端口号，且请求来自特定端口，添加端口号
+    const forwardedPort = req.get('x-forwarded-port');
+    if (!host.includes(':') && forwardedPort) {
+      host = `${host}:${forwardedPort}`;
+    }
     const baseUrl = `${protocol}://${host}`;
     const dateFolder = basename(file.destination || '') || getDateFolder();
     return {
