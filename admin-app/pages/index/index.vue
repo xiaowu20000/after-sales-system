@@ -1,33 +1,38 @@
 <template>
   <view class="page">
-    <view class="header">
-      <text class="title">Active Conversations</text>
-      <view class="header-actions">
-        <button class="btn" size="mini" @click="loadConversations">Refresh</button>
-        <button class="btn" size="mini" @click="openMailConfig">Mail</button>
-        <button class="btn danger" size="mini" @click="logout">Logout</button>
-      </view>
-    </view>
-
-    <view v-if="conversationList.length === 0" class="empty">
-      <text>No active conversations</text>
-    </view>
-
-    <view
-      v-for="item in conversationList"
-      :key="item.peerId"
-      class="card"
-      @click="goToChat(item.peerId)"
+    <scroll-view 
+      scroll-y 
+      class="scroll-container"
+      refresher-enabled
+      :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+      @refresherrestore="onRefreshRestore"
     >
-      <view class="card-left">
-        <text class="name">User #{{ item.peerId }}</text>
-        <text class="last-msg">{{ item.lastMessage?.type === 'IMAGE' ? '[Image]' : (item.lastMessage?.content || '') }}</text>
+      <view v-if="conversationList.length === 0" class="empty">
+        <text>暂无会话</text>
       </view>
-      <view class="card-right">
-        <text class="time">{{ toDisplayTime(item.lastMessage?.createdAt) }}</text>
-        <view v-if="item.unreadCount > 0" class="badge">{{ item.unreadCount }}</view>
+
+      <view
+        v-for="item in conversationList"
+        :key="item.peerId"
+        class="conversation-item"
+        @click="goToChat(item.peerId)"
+      >
+        <view class="avatar">
+          <text class="avatar-text">{{ getUserDisplayName(item.peerId).charAt(0).toUpperCase() }}</text>
+        </view>
+        <view class="content">
+          <view class="content-top">
+            <text class="name">{{ getUserDisplayName(item.peerId) }}</text>
+            <text class="time">{{ toDisplayTime(item.lastMessage?.createdAt) }}</text>
+          </view>
+          <view class="content-bottom">
+            <text class="last-msg">{{ item.lastMessage?.type === 'IMAGE' ? '[图片]' : (item.lastMessage?.content || '') }}</text>
+            <view v-if="item.unreadCount > 0" class="badge">{{ item.unreadCount > 99 ? '99+' : item.unreadCount }}</view>
+          </view>
+        </view>
       </view>
-    </view>
+    </scroll-view>
   </view>
 </template>
 
@@ -42,38 +47,109 @@ import { httpGet } from '../../utils/http';
 const currentUser = ref(getCurrentUser());
 const adminId = Number(currentUser.value?.id || 0);
 const conversations = ref([]);
+const refreshing = ref(false);
+const userEmails = ref({}); // 存储用户邮箱
+const userRemarks = ref({}); // 存储用户备注
 
 const conversationList = computed(() => conversations.value || []);
+
+// 从本地存储加载用户备注
+function loadUserRemarks() {
+  try {
+    const stored = uni.getStorageSync('user_remarks');
+    if (stored) {
+      userRemarks.value = JSON.parse(stored);
+    }
+  } catch (error) {
+    userRemarks.value = {};
+  }
+}
+
+// 保存用户备注到本地存储
+function saveUserRemark(userId, remark) {
+  userRemarks.value[userId] = remark;
+  try {
+    uni.setStorageSync('user_remarks', JSON.stringify(userRemarks.value));
+  } catch (error) {
+    console.error('Save remark failed', error);
+  }
+}
+
+// 获取用户显示名称（备注优先，然后是邮箱，最后是 User #ID）
+function getUserDisplayName(userId) {
+  if (userRemarks.value[userId]) {
+    return userRemarks.value[userId];
+  }
+  if (userEmails.value[userId]) {
+    return userEmails.value[userId];
+  }
+  return `User #${userId}`;
+}
+
+// 加载用户邮箱信息
+async function loadUserEmail(userId) {
+  if (userEmails.value[userId]) return;
+  try {
+    const user = await httpGet(`/users/${userId}`);
+    if (user && user.email) {
+      userEmails.value[userId] = user.email;
+    }
+  } catch (error) {
+    // 忽略错误
+  }
+}
 
 function toDisplayTime(value) {
   if (!value) return '';
   const date = new Date(value);
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+  const now = new Date();
+  const diff = now - date;
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  
+  if (days === 0) {
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  } else if (days === 1) {
+    return '昨天';
+  } else if (days < 7) {
+    return `${days}天前`;
+  } else {
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}/${day}`;
+  }
 }
 
 async function loadConversations() {
   try {
     const data = await httpGet('/messages/conversations?page=1&pageSize=50');
     conversations.value = data.items || [];
+    
+    // 加载所有用户的邮箱
+    for (const item of conversations.value) {
+      await loadUserEmail(item.peerId);
+    }
   } catch (error) {
-    uni.showToast({ title: 'Load failed', icon: 'none' });
+    uni.showToast({ title: '加载失败', icon: 'none' });
   }
+}
+
+function onRefresh() {
+  refreshing.value = true;
+  loadConversations().finally(() => {
+    setTimeout(() => {
+      refreshing.value = false;
+    }, 500);
+  });
+}
+
+function onRefreshRestore() {
+  refreshing.value = false;
 }
 
 function goToChat(userId) {
   uni.navigateTo({ url: `/pages/chat/chat?userId=${userId}` });
-}
-
-function openMailConfig() {
-  uni.navigateTo({ url: '/pages/settings/mail-config' });
-}
-
-function logout() {
-  closeSocket();
-  clearAuth();
-  uni.reLaunch({ url: '/pages/login/login' });
 }
 
 const handleSocketNewMessage = (message) => {
@@ -87,7 +163,7 @@ const handleSocketNewMessage = (message) => {
 };
 
 const handleSocketError = () => {
-  uni.showToast({ title: 'Chat error', icon: 'none' });
+  uni.showToast({ title: '聊天错误', icon: 'none' });
 };
 
 function bindSocketEvents(socket) {
@@ -100,6 +176,7 @@ onMounted(() => {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  loadUserRemarks();
   loadConversations();
   const socket = initSocket(adminId);
   bindSocketEvents(socket);
@@ -121,93 +198,110 @@ onUnmounted(() => {
 <style scoped>
 .page {
   min-height: 100vh;
-  padding: 24rpx;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%);
-}
-
-.header {
+  background: #ededed;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24rpx;
+  flex-direction: column;
 }
 
-.title {
-  font-size: 38rpx;
-  font-weight: 700;
-  color: #1e2d46;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8rpx;
-}
-
-.btn {
-  background: #1a7af8;
-  color: #fff;
-  border-radius: 20rpx;
-}
-
-.danger {
-  background: #ea5454;
+.scroll-container {
+  flex: 1;
+  height: 100%;
 }
 
 .empty {
-  margin-top: 200rpx;
+  padding: 200rpx 0;
   text-align: center;
-  color: #607089;
+  color: #999;
+  font-size: 28rpx;
 }
 
-.card {
-  margin-bottom: 20rpx;
-  padding: 22rpx;
-  border-radius: 20rpx;
-  background: #fff;
+.conversation-item {
   display: flex;
-  justify-content: space-between;
-  box-shadow: 0 10rpx 24rpx rgba(24, 58, 109, 0.08);
+  align-items: center;
+  padding: 24rpx 32rpx;
+  background: #fff;
+  border-bottom: 1rpx solid #e5e5e5;
 }
 
-.card-left {
+.conversation-item:active {
+  background: #f5f5f5;
+}
+
+.avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 8rpx;
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
+
+.avatar-text {
+  color: #fff;
+  font-size: 36rpx;
+  font-weight: 600;
+}
+
+.content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
+  min-width: 0;
+}
+
+.content-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
 }
 
 .name {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #1e2d46;
-}
-
-.last-msg {
-  max-width: 420rpx;
-  font-size: 25rpx;
-  color: #63738b;
-}
-
-.card-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #191919;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .time {
-  font-size: 23rpx;
-  color: #8b98ac;
+  font-size: 24rpx;
+  color: #999;
+  margin-left: 16rpx;
+  flex-shrink: 0;
+}
+
+.content-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.last-msg {
+  font-size: 28rpx;
+  color: #999;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .badge {
-  min-width: 34rpx;
-  height: 34rpx;
-  line-height: 34rpx;
-  padding: 0 10rpx;
-  border-radius: 17rpx;
+  min-width: 36rpx;
+  height: 36rpx;
+  line-height: 36rpx;
+  padding: 0 12rpx;
+  border-radius: 18rpx;
   text-align: center;
   color: #fff;
   font-size: 22rpx;
-  background: #ef4343;
+  background: #fa5151;
+  margin-left: 16rpx;
+  flex-shrink: 0;
 }
 </style>

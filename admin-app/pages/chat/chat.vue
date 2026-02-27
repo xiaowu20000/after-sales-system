@@ -1,19 +1,17 @@
 <template>
   <view class="page">
     <view class="top-bar">
-      <view>
-        <text class="user-title">User #{{ peerId }}</text>
-        <view class="top-actions">
-          <text class="action-link" @click="openCleanupAction">Clean old images</text>
-        </view>
+      <view class="user-info" @click="showUserMenu">
+        <text class="user-title">{{ getUserDisplayName() }}</text>
+        <text class="user-subtitle" v-if="userEmail && userEmail !== getUserDisplayName()">{{ userEmail }}</text>
       </view>
-      <view class="black-switch">
-        <text class="black-label">Blacklist</text>
-        <switch :checked="isBlacklisted" @change="onToggleBlacklist" color="#ef4343" />
+      <view class="top-actions">
+        <text class="action-link" @click="openCleanupAction">清理图片</text>
+        <switch :checked="isBlacklisted" @change="onToggleBlacklist" color="#fa5151" />
       </view>
     </view>
 
-    <scroll-view scroll-y class="message-list">
+    <scroll-view scroll-y class="message-list" :scroll-top="scrollTop" @scroll="onScroll">
       <view
         v-for="item in messageList"
         :key="item.localKey"
@@ -35,8 +33,8 @@
 
     <view v-if="showQuickPanel" class="quick-panel">
       <view class="quick-head">
-        <text>Quick phrase</text>
-        <text class="close" @click="showQuickPanel = false">Close</text>
+        <text>快捷短语</text>
+        <text class="close" @click="showQuickPanel = false">关闭</text>
       </view>
       <scroll-view scroll-y class="quick-list">
         <view
@@ -52,18 +50,54 @@
     </view>
 
     <view class="input-bar">
-      <button size="mini" class="small-btn" @click="showQuickPanel = !showQuickPanel">Phrase</button>
-      <button size="mini" class="small-btn" @click="chooseAndSendImage">Image</button>
-      <input v-model="inputValue" class="input" placeholder="Type message..." :disabled="isBlacklisted" />
-      <button class="send-btn" size="mini" :disabled="isBlacklisted" @click="sendTextMessage">
-        Send
-      </button>
+      <view class="input-left">
+        <view class="icon-btn" @click="showQuickPanel = !showQuickPanel">
+          <text class="icon">📝</text>
+        </view>
+        <view class="icon-btn" @click="chooseAndSendImage">
+          <text class="icon">📷</text>
+        </view>
+      </view>
+      <input 
+        v-model="inputValue" 
+        class="input" 
+        placeholder="输入消息..." 
+        :disabled="isBlacklisted"
+        @confirm="sendTextMessage"
+      />
+      <view class="send-btn" :class="{ disabled: !inputValue.trim() || isBlacklisted }" @click="sendTextMessage">
+        <text>发送</text>
+      </view>
+    </view>
+
+    <!-- 用户菜单弹窗 -->
+    <view v-if="showUserMenuDialog" class="dialog-mask" @click="showUserMenuDialog = false">
+      <view class="dialog-content" @click.stop>
+        <view class="dialog-title">用户信息</view>
+        <view class="dialog-item">
+          <text class="dialog-label">备注名称</text>
+          <input 
+            v-model="editRemark" 
+            class="dialog-input" 
+            placeholder="输入备注名称"
+            @confirm="saveRemark"
+          />
+        </view>
+        <view class="dialog-item">
+          <text class="dialog-label">邮箱</text>
+          <text class="dialog-value">{{ userEmail || '未获取' }}</text>
+        </view>
+        <view class="dialog-buttons">
+          <view class="dialog-btn" @click="showUserMenuDialog = false">取消</view>
+          <view class="dialog-btn primary" @click="saveRemark">保存</view>
+        </view>
+      </view>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '../../config';
 import { getSocket, initSocket, sendSocketMessage } from '../../services/socket.js';
@@ -80,6 +114,64 @@ const inputValue = ref('');
 const messageList = ref([]);
 const quickPhraseList = ref([]);
 const showQuickPanel = ref(false);
+const scrollTop = ref(0);
+const userEmail = ref('');
+const showUserMenuDialog = ref(false);
+const editRemark = ref('');
+
+// 从本地存储加载用户备注
+function loadUserRemark() {
+  try {
+    const stored = uni.getStorageSync('user_remarks');
+    if (stored) {
+      const remarks = JSON.parse(stored);
+      editRemark.value = remarks[peerId.value] || '';
+    }
+  } catch (error) {
+    editRemark.value = '';
+  }
+}
+
+// 保存用户备注
+function saveRemark() {
+  try {
+    const stored = uni.getStorageSync('user_remarks');
+    const remarks = stored ? JSON.parse(stored) : {};
+    if (editRemark.value.trim()) {
+      remarks[peerId.value] = editRemark.value.trim();
+    } else {
+      delete remarks[peerId.value];
+    }
+    uni.setStorageSync('user_remarks', JSON.stringify(remarks));
+    showUserMenuDialog.value = false;
+    uni.showToast({ title: '保存成功', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: '保存失败', icon: 'none' });
+  }
+}
+
+// 获取用户显示名称
+function getUserDisplayName() {
+  try {
+    const stored = uni.getStorageSync('user_remarks');
+    if (stored) {
+      const remarks = JSON.parse(stored);
+      if (remarks[peerId.value]) {
+        return remarks[peerId.value];
+      }
+    }
+  } catch (error) {
+    // ignore
+  }
+  if (userEmail.value) {
+    return userEmail.value;
+  }
+  return `User #${peerId.value}`;
+}
+
+function showUserMenu() {
+  showUserMenuDialog.value = true;
+}
 
 function toLocalKey(item, index) {
   return `${item.id || 'temp'}-${index}-${item.createdAt || Date.now()}`;
@@ -90,6 +182,19 @@ function appendMessage(message) {
     ...message,
     localKey: toLocalKey(message, messageList.value.length),
   });
+  nextTick(() => {
+    scrollToBottom();
+  });
+}
+
+function scrollToBottom() {
+  nextTick(() => {
+    scrollTop.value = 99999;
+  });
+}
+
+function onScroll(e) {
+  // 可以在这里实现滚动加载更多
 }
 
 function getAllImageUrls() {
@@ -118,8 +223,11 @@ async function loadHistory() {
         ...item,
         localKey: toLocalKey(item, index),
       }));
+    nextTick(() => {
+      scrollToBottom();
+    });
   } catch (error) {
-    uni.showToast({ title: 'Load failed', icon: 'none' });
+    uni.showToast({ title: '加载失败', icon: 'none' });
   }
 }
 
@@ -127,8 +235,9 @@ async function loadPeer() {
   try {
     const user = await httpGet(`/users/${peerId.value}`);
     isBlacklisted.value = Boolean(user.isBlacklisted);
+    userEmail.value = user.email || '';
   } catch (error) {
-    uni.showToast({ title: 'User not found', icon: 'none' });
+    uni.showToast({ title: '用户不存在', icon: 'none' });
   }
 }
 
@@ -142,7 +251,7 @@ async function loadQuickPhrases() {
 
 function sendTextMessage() {
   const text = inputValue.value.trim();
-  if (!text) return;
+  if (!text || isBlacklisted.value) return;
 
   try {
     sendSocketMessage({
@@ -152,7 +261,7 @@ function sendTextMessage() {
     });
     inputValue.value = '';
   } catch (error) {
-    uni.showToast({ title: 'Socket offline', icon: 'none' });
+    uni.showToast({ title: '发送失败', icon: 'none' });
   }
 }
 
@@ -166,9 +275,9 @@ async function onToggleBlacklist(event) {
   try {
     await httpPatch(`/users/${peerId.value}`, { isBlacklisted: value });
     isBlacklisted.value = value;
-    uni.showToast({ title: value ? 'User blacklisted' : 'Blacklist removed', icon: 'none' });
+    uni.showToast({ title: value ? '已加入黑名单' : '已移除黑名单', icon: 'none' });
   } catch (error) {
-    uni.showToast({ title: 'Update failed', icon: 'none' });
+    uni.showToast({ title: '更新失败', icon: 'none' });
   }
 }
 
@@ -208,7 +317,7 @@ function chooseImageOnce() {
 
 async function chooseAndSendImage() {
   if (isBlacklisted.value) {
-    uni.showToast({ title: 'User is blacklisted', icon: 'none' });
+    uni.showToast({ title: '用户已被拉黑', icon: 'none' });
     return;
   }
   try {
@@ -223,13 +332,13 @@ async function chooseAndSendImage() {
       type: 'IMAGE',
     });
   } catch (error) {
-    uni.showToast({ title: 'Image send failed', icon: 'none' });
+    uni.showToast({ title: '发送图片失败', icon: 'none' });
   }
 }
 
 function openCleanupAction() {
   uni.showActionSheet({
-    itemList: ['Older than 3 days', 'Older than 7 days', 'Older than 15 days'],
+    itemList: ['3天前', '7天前', '15天前'],
     success: async (res) => {
       const mapping = [3, 7, 15];
       const days = mapping[res.tapIndex] || 7;
@@ -242,11 +351,11 @@ async function cleanupOldUploads(days) {
   try {
     const result = await httpDelete(`/upload/cleanup?days=${days}`);
     uni.showToast({
-      title: `Deleted ${result.removedFolders} folders`,
+      title: `已删除 ${result.removedFolders} 个文件夹`,
       icon: 'none',
     });
   } catch (error) {
-    uni.showToast({ title: 'Cleanup failed', icon: 'none' });
+    uni.showToast({ title: '清理失败', icon: 'none' });
   }
 }
 
@@ -268,15 +377,15 @@ const handleSocketNewMessage = (message) => {
 };
 
 const handleBlockedMessage = () => {
-  uni.showToast({ title: 'Forbidden word blocked', icon: 'none' });
+  uni.showToast({ title: '包含敏感词', icon: 'none' });
 };
 
 const handleSocketError = (payload) => {
   if (payload?.code === 'BLACKLISTED') {
-    uni.showToast({ title: 'Chat restricted', icon: 'none' });
+    uni.showToast({ title: '聊天受限', icon: 'none' });
     return;
   }
-  uni.showToast({ title: 'Send failed', icon: 'none' });
+  uni.showToast({ title: '发送失败', icon: 'none' });
 };
 
 onLoad((options) => {
@@ -286,12 +395,13 @@ onLoad((options) => {
   }
   peerId.value = Number(options?.userId || 0);
   if (!peerId.value) {
-    uni.showToast({ title: 'Missing user id', icon: 'none' });
+    uni.showToast({ title: '缺少用户ID', icon: 'none' });
     return;
   }
 
   setActiveChatPeer(adminId, peerId.value);
   clearUnread(adminId, peerId.value);
+  loadUserRemark();
   loadPeer();
   loadHistory();
   loadQuickPhrases();
@@ -312,7 +422,7 @@ onUnload(() => {
 <style scoped>
 .page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #f8fbff 0%, #edf2fa 100%);
+  background: #ededed;
   display: flex;
   flex-direction: column;
 }
@@ -321,44 +431,50 @@ onUnload(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20rpx 24rpx;
+  padding: 24rpx 32rpx;
   background: #fff;
+  border-bottom: 1rpx solid #e5e5e5;
+}
+
+.user-info {
+  flex: 1;
 }
 
 .user-title {
-  font-size: 30rpx;
+  display: block;
+  font-size: 32rpx;
   font-weight: 600;
-  color: #233149;
+  color: #191919;
+}
+
+.user-subtitle {
+  display: block;
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 4rpx;
 }
 
 .top-actions {
-  margin-top: 6rpx;
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
 }
 
 .action-link {
-  font-size: 23rpx;
-  color: #1f78f7;
-}
-
-.black-switch {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.black-label {
-  font-size: 24rpx;
-  color: #6b7890;
+  font-size: 26rpx;
+  color: #1e88e5;
 }
 
 .message-list {
   flex: 1;
-  padding: 24rpx;
+  padding: 24rpx 0;
+  background: #ededed;
 }
 
 .message-row {
   display: flex;
-  margin-bottom: 16rpx;
+  margin-bottom: 24rpx;
+  padding: 0 32rpx;
 }
 
 .message-row.mine {
@@ -366,101 +482,219 @@ onUnload(() => {
 }
 
 .bubble {
-  max-width: 520rpx;
-  padding: 16rpx 18rpx;
-  border-radius: 18rpx;
+  max-width: 480rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 12rpx;
   background: #fff;
-  box-shadow: 0 8rpx 16rpx rgba(20, 41, 74, 0.08);
+  position: relative;
 }
 
 .bubble.mine {
-  background: #1f80ff;
+  background: #95ec69;
+}
+
+.bubble:not(.mine)::before {
+  content: '';
+  position: absolute;
+  left: -16rpx;
+  top: 20rpx;
+  width: 0;
+  height: 0;
+  border: 16rpx solid transparent;
+  border-right-color: #fff;
+}
+
+.bubble.mine::after {
+  content: '';
+  position: absolute;
+  right: -16rpx;
+  top: 20rpx;
+  width: 0;
+  height: 0;
+  border: 16rpx solid transparent;
+  border-left-color: #95ec69;
 }
 
 .text {
-  font-size: 28rpx;
-  color: #223047;
+  font-size: 30rpx;
+  color: #191919;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .bubble.mine .text {
-  color: #fff;
+  color: #191919;
 }
 
 .msg-image {
-  width: 320rpx;
-  border-radius: 14rpx;
+  max-width: 400rpx;
+  border-radius: 8rpx;
 }
 
 .quick-panel {
-  height: 320rpx;
+  height: 400rpx;
   background: #fff;
-  border-top-left-radius: 20rpx;
-  border-top-right-radius: 20rpx;
-  padding: 16rpx 20rpx;
+  border-top: 1rpx solid #e5e5e5;
+  padding: 24rpx 32rpx;
 }
 
 .quick-head {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 14rpx;
-  color: #243149;
-  font-size: 28rpx;
+  margin-bottom: 20rpx;
+  color: #191919;
+  font-size: 30rpx;
+  font-weight: 600;
 }
 
 .close {
-  color: #1b7af8;
+  color: #1e88e5;
 }
 
 .quick-list {
-  max-height: 250rpx;
+  max-height: 320rpx;
 }
 
 .quick-item {
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #e8edf5;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
 }
 
 .q-title {
   display: block;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
-  color: #28344b;
+  color: #191919;
 }
 
 .q-content {
   display: block;
-  margin-top: 6rpx;
-  font-size: 24rpx;
-  color: #65758e;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  color: #999;
 }
 
 .input-bar {
   display: flex;
   align-items: center;
-  gap: 10rpx;
-  padding: 16rpx;
+  gap: 16rpx;
+  padding: 16rpx 32rpx;
   background: #fff;
-  border-top: 1rpx solid #e7edf8;
+  border-top: 1rpx solid #e5e5e5;
 }
 
-.small-btn {
-  background: #eef4ff;
-  color: #1d6ddd;
-  border-radius: 14rpx;
+.input-left {
+  display: flex;
+  gap: 8rpx;
+}
+
+.icon-btn {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8rpx;
+  background: #f5f5f5;
+}
+
+.icon {
+  font-size: 36rpx;
 }
 
 .input {
   flex: 1;
-  height: 72rpx;
-  padding: 0 16rpx;
-  background: #f1f5fc;
-  border-radius: 14rpx;
-  font-size: 26rpx;
+  height: 64rpx;
+  padding: 0 24rpx;
+  background: #f5f5f5;
+  border-radius: 8rpx;
+  font-size: 28rpx;
 }
 
 .send-btn {
-  background: #1e7af8;
+  padding: 0 32rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  background: #1e88e5;
   color: #fff;
-  border-radius: 14rpx;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+}
+
+.send-btn.disabled {
+  background: #c7c7c7;
+  color: #fff;
+}
+
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  width: 600rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 40rpx;
+}
+
+.dialog-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #191919;
+  margin-bottom: 32rpx;
+  text-align: center;
+}
+
+.dialog-item {
+  margin-bottom: 32rpx;
+}
+
+.dialog-label {
+  display: block;
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 16rpx;
+}
+
+.dialog-input {
+  width: 100%;
+  height: 72rpx;
+  padding: 0 24rpx;
+  background: #f5f5f5;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+}
+
+.dialog-value {
+  font-size: 28rpx;
+  color: #191919;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 40rpx;
+}
+
+.dialog-btn {
+  flex: 1;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  border-radius: 8rpx;
+  background: #f5f5f5;
+  color: #191919;
+  font-size: 30rpx;
+}
+
+.dialog-btn.primary {
+  background: #1e88e5;
+  color: #fff;
 }
 </style>
