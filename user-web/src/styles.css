@@ -21,20 +21,35 @@ body {
     #eef3fb;
 }
 
-.hero {
-  padding: 64px 24px;
-  max-width: 900px;
-  margin: 0 auto;
+.auth-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 
-.hero h1 {
+.auth-container {
+  width: 100%;
+  max-width: 500px;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.auth-header h1 {
   margin: 0;
-  font-size: 42px;
+  font-size: 36px;
+  font-weight: 600;
+  color: #1a237e;
 }
 
-.hero p {
+.auth-header p {
   margin-top: 12px;
-  color: #4d6078;
+  color: #5f6368;
+  font-size: 16px;
 }
 
 .auth-card {

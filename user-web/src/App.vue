@@ -1,43 +1,46 @@
 <template>
   <main class="page">
-    <section class="hero">
-      <h1>After Sales User Portal</h1>
-      <p>Register/Login with email before using support chat.</p>
+    <!-- 登录前：显示注册/登录表单 -->
+    <section v-if="!token" class="auth-section">
+      <div class="auth-container">
+        <div class="auth-header">
+          <h1>After Sales Support</h1>
+          <p>Register or login to start chatting with our support team</p>
+        </div>
+        
+        <div class="auth-card">
+          <h2>Register</h2>
+          <div class="row">
+            <input v-model.trim="registerForm.email" placeholder="Email" />
+            <button @click="sendCode">Send Code</button>
+          </div>
+          <div class="row">
+            <input v-model.trim="registerForm.code" placeholder="6-digit code" />
+            <input v-model.trim="registerForm.password" type="password" placeholder="Password" />
+          </div>
+          <button class="full" @click="register">Register</button>
+
+          <h2>Login</h2>
+          <div class="row">
+            <input v-model.trim="loginForm.email" placeholder="Email" />
+            <input v-model.trim="loginForm.password" type="password" placeholder="Password" />
+          </div>
+          <button class="full" @click="login">Login</button>
+          <p class="hint">{{ hint }}</p>
+        </div>
+      </div>
     </section>
 
-    <section v-if="!token" class="auth-card">
-      <h2>Register</h2>
-      <div class="row">
-        <input v-model.trim="registerForm.email" placeholder="Email" />
-        <button @click="sendCode">Send Code</button>
-      </div>
-      <div class="row">
-        <input v-model.trim="registerForm.code" placeholder="6-digit code" />
-        <input v-model.trim="registerForm.password" type="password" placeholder="Password" />
-      </div>
-      <button class="full" @click="register">Register</button>
-
-      <h2>Login</h2>
-      <div class="row">
-        <input v-model.trim="loginForm.email" placeholder="Email" />
-        <input v-model.trim="loginForm.password" type="password" placeholder="Password" />
-      </div>
-      <button class="full" @click="login">Login</button>
-      <p class="hint">{{ hint }}</p>
-    </section>
-
-    <section v-else class="auth-card">
-      <p>Logged in as: {{ user?.email }} ({{ user?.role }})</p>
-      <button class="full" @click="logout">Logout</button>
-    </section>
-
+    <!-- 登录后：显示全屏聊天界面 -->
     <CustomerChatWidget
-      v-if="token && userId"
+      v-else-if="token && userId"
       :user-id="userId"
       :admin-id="1"
       :token="token"
       :api-base="apiBase"
       :socket-base="socketBase"
+      :user-email="user?.email"
+      @logout="logout"
     />
   </main>
 </template>

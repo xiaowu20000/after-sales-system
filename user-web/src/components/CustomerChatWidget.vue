@@ -1,60 +1,73 @@
 <template>
-  <div class="chat-widget">
-    <button class="float-btn" @click="togglePanel">
-      {{ panelOpen ? 'Close' : 'Support' }}
-    </button>
-
-    <transition name="panel">
-      <section v-if="panelOpen" class="panel">
-        <header class="panel-header">
-          <div>
-            <strong>After-Sales Support</strong>
-            <p class="status">{{ statusText }}</p>
-          </div>
-        </header>
-
-        <div ref="messageContainerRef" class="message-list">
-          <div
-            v-for="(message, index) in messageList"
-            :key="`${message.id || 'local'}-${index}`"
-            class="row"
-            :class="{ mine: Number(message.senderId) === userId }"
-          >
-            <div class="bubble" :class="{ mine: Number(message.senderId) === userId }">
-              <img
-                v-if="message.type === 'IMAGE'"
-                :src="message.content"
-                class="msg-image"
-                @click="openLightbox(message.content)"
-              />
-              <span v-else>{{ message.content }}</span>
-            </div>
-          </div>
+  <div class="chat-container">
+    <header class="chat-header">
+      <div class="header-content">
+        <div class="header-info">
+          <h2>After-Sales Support</h2>
+          <p class="status">
+            <span class="status-dot" :class="{ connected: socketRef?.connected }"></span>
+            {{ statusText }}
+          </p>
         </div>
+        <div class="header-actions">
+          <span class="user-email">{{ userEmail }}</span>
+          <button class="logout-btn" @click="handleLogout">Logout</button>
+        </div>
+      </div>
+    </header>
 
-        <p v-if="hintText" class="hint">{{ hintText }}</p>
-
-        <footer class="composer">
-          <label class="image-btn">
-            Image
-            <input type="file" accept="image/*" class="hidden-file" @change="onSelectImage" />
-          </label>
-          <input
-            v-model.trim="textValue"
-            class="text-input"
-            type="text"
-            placeholder="Type your message..."
-            @keyup.enter="sendText"
+    <div ref="messageContainerRef" class="message-list">
+      <div
+        v-for="(message, index) in messageList"
+        :key="`${message.id || 'local'}-${index}`"
+        class="message-row"
+        :class="{ mine: Number(message.senderId) === userId }"
+      >
+        <div class="bubble" :class="{ mine: Number(message.senderId) === userId }">
+          <img
+            v-if="message.type === 'IMAGE'"
+            :src="message.content"
+            class="msg-image"
+            @click="openLightbox(message.content)"
           />
-          <button class="send-btn" @click="sendText">Send</button>
-        </footer>
-      </section>
-    </transition>
+          <span v-else class="message-text">{{ message.content }}</span>
+        </div>
+      </div>
+      <div v-if="messageList.length === 0" class="empty-state">
+        <p>No messages yet. Start the conversation!</p>
+      </div>
+    </div>
+
+    <p v-if="hintText" class="hint">{{ hintText }}</p>
+
+    <footer class="composer">
+      <label class="image-btn" title="Upload image">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <input type="file" accept="image/*" class="hidden-file" @change="onSelectImage" />
+      </label>
+      <input
+        v-model.trim="textValue"
+        class="text-input"
+        type="text"
+        placeholder="Type your message..."
+        @keyup.enter="sendText"
+      />
+      <button class="send-btn" @click="sendText" :disabled="!textValue.trim()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </footer>
 
     <transition name="fade">
       <div v-if="lightboxVisible" class="lightbox" @click="closeLightbox">
         <img class="lightbox-image" :src="lightboxUrl" @click.stop />
-        <button class="lightbox-close" @click.stop="closeLightbox">x</button>
+        <button class="lightbox-close" @click.stop="closeLightbox">×</button>
       </div>
     </transition>
   </div>
@@ -70,9 +83,11 @@ const props = defineProps({
   apiBase: { type: String, default: '/api' },
   socketBase: { type: String, default: '/' },
   token: { type: String, default: '' },
+  userEmail: { type: String, default: '' },
 });
 
-const panelOpen = ref(false);
+const emit = defineEmits(['logout']);
+
 const textValue = ref('');
 const hintText = ref('');
 const messageList = ref([]);
@@ -83,12 +98,12 @@ const lightboxUrl = ref('');
 
 const statusText = computed(() => (socketRef.value?.connected ? 'Connected' : 'Connecting...'));
 
-function togglePanel() {
-  panelOpen.value = !panelOpen.value;
-  if (panelOpen.value) {
-    ensureSocket();
-    loadHistory();
+function handleLogout() {
+  if (socketRef.value) {
+    socketRef.value.disconnect();
+    socketRef.value = null;
   }
+  emit('logout');
 }
 
 async function loadHistory() {
@@ -232,9 +247,10 @@ function scrollToBottom() {
   });
 }
 
-watch(panelOpen, (value) => {
-  if (value) scrollToBottom();
-});
+// 监听消息列表变化，自动滚动到底部
+watch(messageList, () => {
+  scrollToBottom();
+}, { deep: true });
 
 function onKeydown(event) {
   if (event.key === 'Escape') closeLightbox();
@@ -249,125 +265,205 @@ onBeforeUnmount(() => {
 });
 
 onMounted(() => {
+  ensureSocket();
+  loadHistory();
   window.addEventListener('keydown', onKeydown);
 });
 </script>
 
 <style scoped>
-.chat-widget {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 999;
-}
-
-.float-btn {
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #1b77ff, #0f62df);
-  color: #fff;
-  font-size: 14px;
-  padding: 12px 18px;
-  cursor: pointer;
-  box-shadow: 0 10px 22px rgba(14, 79, 182, 0.34);
-}
-
-.panel {
-  width: 360px;
-  height: 560px;
-  margin-bottom: 14px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #fff;
+.chat-container {
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 44px rgba(17, 40, 72, 0.2);
+  height: 100vh;
+  background: #f5f7fa;
 }
 
-.panel-header {
-  padding: 14px 16px;
-  background: linear-gradient(135deg, #1663d5, #1f89ff);
+.chat-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
 }
 
-.panel-header p {
-  margin: 5px 0 0;
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-info h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .status {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
   opacity: 0.9;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background: #51cf66;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-email {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .message-list {
   flex: 1;
   overflow-y: auto;
-  background: #f5f8fd;
-  padding: 14px;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.row {
+.empty-state {
   display: flex;
-  margin-bottom: 10px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #8b95a7;
+  font-size: 16px;
 }
 
-.row.mine {
+.message-row {
+  display: flex;
+  margin-bottom: 16px;
+  animation: fadeIn 0.3s ease;
+}
+
+.message-row.mine {
   justify-content: flex-end;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .bubble {
-  max-width: 72%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  line-height: 1.45;
+  max-width: 65%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  line-height: 1.5;
   background: #fff;
-  color: #203247;
-  box-shadow: 0 3px 10px rgba(17, 41, 74, 0.08);
+  color: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  word-wrap: break-word;
 }
 
 .bubble.mine {
-  background: #1878ff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble:not(.mine) {
+  border-bottom-left-radius: 4px;
+}
+
+.message-text {
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .msg-image {
-  max-width: 220px;
-  border-radius: 8px;
+  max-width: 300px;
+  border-radius: 12px;
   display: block;
   cursor: zoom-in;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .hint {
   margin: 0;
-  padding: 8px 14px;
-  color: #be3b3b;
-  background: #fff4f4;
-  border-top: 1px solid #ffe2e2;
-  font-size: 13px;
+  padding: 12px 24px;
+  color: #c53030;
+  background: #fed7d7;
+  border-top: 1px solid #fc8181;
+  font-size: 14px;
+  text-align: center;
 }
 
 .composer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px;
-  border-top: 1px solid #e4ebf5;
+  gap: 12px;
+  padding: 16px 24px;
   background: #fff;
-}
-
-.image-btn,
-.send-btn {
-  border: none;
-  border-radius: 10px;
-  padding: 9px 12px;
-  font-size: 13px;
-  cursor: pointer;
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .image-btn {
-  background: #e8f0ff;
-  color: #1b61c4;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  color: #4a5568;
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
   position: relative;
+}
+
+.image-btn:hover {
+  background: #edf2f7;
+  border-color: #cbd5e0;
 }
 
 .hidden-file {
@@ -379,26 +475,40 @@ onMounted(() => {
 
 .text-input {
   flex: 1;
-  border: 1px solid #d8e2f2;
-  border-radius: 10px;
-  padding: 9px 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
   outline: none;
+  font-size: 15px;
+  transition: border-color 0.2s;
+}
+
+.text-input:focus {
+  border-color: #667eea;
 }
 
 .send-btn {
-  background: #1878ff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
-.panel-enter-active,
-.panel-leave-active {
-  transition: all 0.2s ease;
+.send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.panel-enter-from,
-.panel-leave-to {
-  opacity: 0;
-  transform: translateY(8px);
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .fade-enter-active,
@@ -414,44 +524,70 @@ onMounted(() => {
 .lightbox {
   position: fixed;
   inset: 0;
-  background: rgba(8, 15, 28, 0.8);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1200;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
 }
 
 .lightbox-image {
   max-width: 90vw;
-  max-height: 85vh;
+  max-height: 90vh;
   border-radius: 12px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
 .lightbox-close {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 24px;
+  right: 24px;
   border: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
-  font-size: 18px;
+  font-size: 24px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  backdrop-filter: blur(10px);
 }
 
-@media (max-width: 540px) {
-  .chat-widget {
-    right: 12px;
-    left: 12px;
-    bottom: 12px;
+.lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
 
-  .panel {
+  .header-actions {
     width: 100%;
-    height: 72vh;
+    justify-content: space-between;
+  }
+
+  .message-list {
+    padding: 16px;
+  }
+
+  .composer {
+    padding: 12px 16px;
+  }
+
+  .bubble {
+    max-width: 80%;
+  }
+
+  .msg-image {
+    max-width: 250px;
   }
 }
 </style>
