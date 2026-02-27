@@ -4,29 +4,96 @@
     <section v-if="!token" class="auth-section">
       <div class="auth-container">
         <div class="auth-header">
+          <div class="logo-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
           <h1>After Sales Support</h1>
-          <p>Register or login to start chatting with our support team</p>
+          <p>Welcome! Please register or login to start chatting with our support team</p>
         </div>
         
-        <div class="auth-card">
-          <h2>Register</h2>
-          <div class="row">
-            <input v-model.trim="registerForm.email" placeholder="Email" />
-            <button @click="sendCode">Send Code</button>
-          </div>
-          <div class="row">
-            <input v-model.trim="registerForm.code" placeholder="6-digit code" />
-            <input v-model.trim="registerForm.password" type="password" placeholder="Password" />
-          </div>
-          <button class="full" @click="register">Register</button>
+        <div class="auth-tabs">
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'register' }"
+            @click="activeTab = 'register'"
+          >
+            Register
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'login' }"
+            @click="activeTab = 'login'"
+          >
+            Login
+          </button>
+        </div>
 
-          <h2>Login</h2>
-          <div class="row">
-            <input v-model.trim="loginForm.email" placeholder="Email" />
-            <input v-model.trim="loginForm.password" type="password" placeholder="Password" />
+        <div class="auth-card">
+          <!-- 注册表单 -->
+          <div v-show="activeTab === 'register'" class="auth-form">
+            <h2>Create Account</h2>
+            <div class="form-group">
+              <label>Email Address</label>
+              <input 
+                v-model.trim="registerForm.email" 
+                type="email"
+                placeholder="Enter your email" 
+                class="form-input"
+              />
+            </div>
+            <button class="code-btn" @click="sendCode" :disabled="!registerForm.email">
+              Send Verification Code
+            </button>
+            <div class="form-group">
+              <label>Verification Code</label>
+              <input 
+                v-model.trim="registerForm.code" 
+                placeholder="Enter 6-digit code" 
+                class="form-input"
+                maxlength="6"
+              />
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input 
+                v-model.trim="registerForm.password" 
+                type="password" 
+                placeholder="Create a password" 
+                class="form-input"
+              />
+            </div>
+            <button class="submit-btn" @click="register">Create Account</button>
           </div>
-          <button class="full" @click="login">Login</button>
-          <p class="hint">{{ hint }}</p>
+
+          <!-- 登录表单 -->
+          <div v-show="activeTab === 'login'" class="auth-form">
+            <h2>Welcome Back</h2>
+            <div class="form-group">
+              <label>Email Address</label>
+              <input 
+                v-model.trim="loginForm.email" 
+                type="email"
+                placeholder="Enter your email" 
+                class="form-input"
+              />
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input 
+                v-model.trim="loginForm.password" 
+                type="password" 
+                placeholder="Enter your password" 
+                class="form-input"
+              />
+            </div>
+            <button class="submit-btn" @click="login">Sign In</button>
+          </div>
+
+          <p v-if="hint" class="hint" :class="{ error: hint.includes('failed') || hint.includes('error') || hint.includes('Error') }">
+            {{ hint }}
+          </p>
         </div>
       </div>
     </section>
@@ -79,6 +146,7 @@ const loginForm = ref({
   password: '',
 });
 
+const activeTab = ref('register');
 const hint = ref('');
 
 async function post(url, data) {

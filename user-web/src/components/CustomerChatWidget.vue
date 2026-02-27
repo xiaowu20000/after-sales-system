@@ -280,7 +280,7 @@ onMounted(() => {
 }
 
 .chat-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
   color: #fff;
   padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -401,7 +401,7 @@ onMounted(() => {
 }
 
 .bubble.mine {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
@@ -484,11 +484,11 @@ onMounted(() => {
 }
 
 .text-input:focus {
-  border-color: #667eea;
+  border-color: #1e88e5;
 }
 
 .send-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -498,12 +498,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.3);
 }
 
 .send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
 }
 
 .send-btn:disabled {
