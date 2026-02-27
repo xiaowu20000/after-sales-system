@@ -86,15 +86,23 @@ async function post(url, data) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(body?.message || 'Request failed');
+    // 处理验证错误（数组格式）或普通错误（字符串格式）
+    const errorMsg = Array.isArray(body?.message) 
+      ? body.message.join(', ') 
+      : (body?.message || 'Request failed');
+    throw new Error(errorMsg);
   }
   return body;
 }
 
 async function sendCode() {
+  if (!registerForm.value.email || !registerForm.value.email.trim()) {
+    hint.value = 'Please enter your email address';
+    return;
+  }
   try {
     await post('/auth/send-register-code', {
-      email: registerForm.value.email,
+      email: registerForm.value.email.trim(),
     });
     hint.value = 'Verification code sent.';
   } catch (error) {
