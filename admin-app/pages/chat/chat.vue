@@ -66,7 +66,7 @@
 import { ref } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '../../config';
-import { getSocket, initSocket, sendSocketMessage } from '../../services/socket';
+import { getSocket, initSocket, sendSocketMessage } from '../../services/socket.js';
 import { clearUnread, setActiveChatPeer } from '../../utils/chat-state';
 import { getCurrentUser } from '../../utils/auth';
 import { httpDelete, httpGet, httpPatch } from '../../utils/http';

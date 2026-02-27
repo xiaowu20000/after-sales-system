@@ -34,7 +34,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { closeSocket, getSocket, initSocket } from '../../services/socket';
+import { closeSocket, getSocket, initSocket } from '../../services/socket.js';
 import { getActiveChatPeer, increaseUnread } from '../../utils/chat-state';
 import { clearAuth, getCurrentUser } from '../../utils/auth';
 import { httpGet } from '../../utils/http';
