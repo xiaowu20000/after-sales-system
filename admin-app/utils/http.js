@@ -17,8 +17,21 @@ function request(method, url, data) {
         }
         if (res.statusCode === 401) {
           clearAuth();
+          uni.showModal({
+            title: '认证失败',
+            content: '登录已过期，请重新登录',
+            showCancel: false,
+            success: () => {
+              uni.reLaunch({ url: '/pages/login/login' });
+            }
+          });
         }
-        reject(res.data || { message: `HTTP ${res.statusCode}` });
+        const errorData = res.data || {};
+        reject({
+          ...errorData,
+          message: errorData.message || `HTTP ${res.statusCode}`,
+          statusCode: res.statusCode
+        });
       },
       fail: reject,
     });

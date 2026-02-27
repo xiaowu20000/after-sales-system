@@ -27,10 +27,18 @@
       </view>
     </view>
 
-    <scroll-view scroll-y class="message-list" :scroll-top="scrollTop" @scroll="onScroll">
+    <scroll-view 
+      scroll-y 
+      class="message-list" 
+      :scroll-top="scrollTop" 
+      :scroll-into-view="scrollIntoView"
+      @scroll="onScroll"
+      ref="messageScrollRef"
+    >
       <view
-        v-for="item in messageList"
+        v-for="(item, index) in messageList"
         :key="item.localKey"
+        :id="`msg-${index}`"
         class="message-row"
         :class="{ mine: Number(item.senderId) === adminId }"
       >
@@ -134,6 +142,8 @@ const messageList = ref([]);
 const quickPhraseList = ref([]);
 const showQuickPanel = ref(false);
 const scrollTop = ref(0);
+const scrollIntoView = ref('');
+const messageScrollRef = ref(null);
 const userEmail = ref('');
 const showUserMenuDialog = ref(false);
 const editRemark = ref('');
@@ -232,7 +242,13 @@ function appendMessage(message) {
 
 function scrollToBottom() {
   nextTick(() => {
-    scrollTop.value = 99999;
+    if (messageList.value.length > 0) {
+      // 使用 scroll-into-view 滚动到最后一条消息
+      const lastIndex = messageList.value.length - 1;
+      scrollIntoView.value = `msg-${lastIndex}`;
+      // 同时设置一个很大的 scrollTop 值作为备用
+      scrollTop.value = 999999;
+    }
   });
 }
 
@@ -266,10 +282,16 @@ async function loadHistory() {
         ...item,
         localKey: toLocalKey(item, index),
       }));
-    // 延迟滚动到底部，确保 DOM 已渲染
+    // 多次尝试滚动到底部，确保 DOM 已完全渲染
     setTimeout(() => {
       scrollToBottom();
-    }, 200);
+    }, 100);
+    setTimeout(() => {
+      scrollToBottom();
+    }, 300);
+    setTimeout(() => {
+      scrollToBottom();
+    }, 500);
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }

@@ -306,18 +306,18 @@ function clearAppCache() {
     success: (res) => {
       if (res.confirm) {
         try {
-          const token = uni.getStorageSync('user_token');
-          const user = uni.getStorageSync('user_info');
+          const token = uni.getStorageSync('admin_token');
+          const user = uni.getStorageSync('admin_user');
           const userRemarks = uni.getStorageSync('user_remarks');
           
           uni.clearStorageSync();
           
           // 恢复认证信息和用户备注
           if (token) {
-            uni.setStorageSync('user_token', token);
+            uni.setStorageSync('admin_token', token);
           }
           if (user) {
-            uni.setStorageSync('user_info', user);
+            uni.setStorageSync('admin_user', user);
           }
           if (userRemarks) {
             uni.setStorageSync('user_remarks', userRemarks);
@@ -367,17 +367,17 @@ function clearAllCache() {
     success: (res) => {
       if (res.confirm) {
         try {
-          const token = uni.getStorageSync('user_token');
-          const user = uni.getStorageSync('user_info');
+          const token = uni.getStorageSync('admin_token');
+          const user = uni.getStorageSync('admin_user');
           
           uni.clearStorageSync();
           
           // 只恢复认证信息
           if (token) {
-            uni.setStorageSync('user_token', token);
+            uni.setStorageSync('admin_token', token);
           }
           if (user) {
-            uni.setStorageSync('user_info', user);
+            uni.setStorageSync('admin_user', user);
           }
           
           uni.showToast({ title: '全部缓存已清除', icon: 'success' });

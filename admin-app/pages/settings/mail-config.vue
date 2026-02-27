@@ -53,9 +53,21 @@ async function save() {
       pass: form.pass,
       fromEmail: form.fromEmail,
     });
-    uni.showToast({ title: 'Saved', icon: 'none' });
+    uni.showToast({ title: '保存成功', icon: 'success' });
   } catch (error) {
-    uni.showToast({ title: 'Save failed', icon: 'none' });
+    const errorMsg = error?.message || '保存失败';
+    if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+      uni.showModal({
+        title: '认证失败',
+        content: '登录已过期，请重新登录',
+        showCancel: false,
+        success: () => {
+          uni.reLaunch({ url: '/pages/login/login' });
+        }
+      });
+    } else {
+      uni.showToast({ title: errorMsg, icon: 'none', duration: 2000 });
+    }
   }
 }
 
