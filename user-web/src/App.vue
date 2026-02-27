@@ -101,12 +101,19 @@ async function sendCode() {
     return;
   }
   try {
+    hint.value = ''; // 清空之前的提示
     await post('/auth/send-register-code', {
       email: registerForm.value.email.trim(),
     });
     hint.value = 'Verification code sent.';
   } catch (error) {
-    hint.value = error.message || 'Send code failed';
+    // 显示错误信息，对于常见错误提供友好提示
+    const errorMsg = error.message || 'Send code failed';
+    if (errorMsg.includes('already registered') || errorMsg.includes('Email already registered')) {
+      hint.value = 'This email is already registered. Please login instead.';
+    } else {
+      hint.value = errorMsg;
+    }
   }
 }
 
