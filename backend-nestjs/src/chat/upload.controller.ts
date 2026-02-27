@@ -86,7 +86,10 @@ export class UploadController {
 
     await this.chatService.ensureUserCanCommunicate(userId);
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // 使用 X-Forwarded-Proto 和 Host 头来构建正确的 URL（支持反向代理）
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const host = req.get('host') || req.get('x-forwarded-host') || 'localhost';
+    const baseUrl = `${protocol}://${host}`;
     const dateFolder = basename(file.destination || '') || getDateFolder();
     return {
       url: `${baseUrl}/uploads/${dateFolder}/${file.filename}`,
