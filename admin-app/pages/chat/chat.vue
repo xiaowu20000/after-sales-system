@@ -306,47 +306,53 @@ async function loadHistory() {
     await nextTick();
     await nextTick(); // 多等待一次，确保DOM完全渲染
     
-    // 使用 uni.createSelectorQuery 获取 scroll-view 的实际高度和内容高度
+    // 使用 uni.createSelectorQuery 获取 scroll-view 的实际高度和内容高度，计算正确的 scrollTop
     const query = uni.createSelectorQuery();
+    
     query.select('.message-list').boundingClientRect((rect) => {
-      console.log('scroll-view 容器高度:', rect?.height);
-    }).exec();
-    
-    query.selectAll('.message-row').boundingClientRect((rects) => {
-      if (rects && rects.length > 0) {
-        const totalHeight = rects.reduce((sum, rect) => sum + (rect.height || 0), 0);
-        console.log('消息总高度:', totalHeight, '消息条数:', rects.length);
-      }
-    }).exec();
-    
-    // 使用 scroll-into-view 滚动到底部
-    const lastIndex = messageList.value.length - 1;
-    if (lastIndex >= 0) {
-      console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`);
+      const containerHeight = rect?.height || 0;
+      console.log('scroll-view 容器高度:', containerHeight);
       
-      // 先置空，再设置，确保触发滚动
-      scrollIntoView.value = '';
-      scrollTop.value = 0;
-      await nextTick();
-      
-      // 延迟设置，确保DOM完全渲染（uni-app 需要更长的延迟）
-      setTimeout(() => {
-        scrollIntoView.value = `msg-${lastIndex}`;
-        scrollTop.value = 999999;
-        console.log('第一次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
-        
-        // 再次延迟，确保滚动生效
-        setTimeout(() => {
-          scrollIntoView.value = '';
-          scrollTop.value = 0;
-          setTimeout(() => {
-            scrollIntoView.value = `msg-${lastIndex}`;
-            scrollTop.value = 999999;
-            console.log('第二次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
-          }, 50);
-        }, 200);
-      }, 300);
-    }
+      query.selectAll('.message-row').boundingClientRect((rects) => {
+        if (rects && rects.length > 0) {
+          const totalHeight = rects.reduce((sum, rect) => sum + (rect.height || 0), 0);
+          console.log('消息总高度:', totalHeight, '消息条数:', rects.length);
+          
+          // 计算实际的 scrollTop 值：内容高度 - 容器高度 + 一些padding
+          // 如果内容高度小于容器高度，则不需要滚动（scrollTop = 0）
+          const calculatedScrollTop = totalHeight > containerHeight ? totalHeight - containerHeight + 100 : 0;
+          console.log('计算的 scrollTop:', calculatedScrollTop);
+          
+          // 使用 scroll-into-view 滚动到底部
+          const lastIndex = messageList.value.length - 1;
+          if (lastIndex >= 0) {
+            console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`);
+            
+            // 先置空，再设置，确保触发滚动
+            scrollIntoView.value = '';
+            scrollTop.value = 0;
+            
+            // 延迟设置，确保DOM完全渲染
+            setTimeout(() => {
+              scrollIntoView.value = `msg-${lastIndex}`;
+              scrollTop.value = calculatedScrollTop > 0 ? calculatedScrollTop : 999999;
+              console.log('第一次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+              
+              // 再次延迟，确保滚动生效
+              setTimeout(() => {
+                scrollIntoView.value = '';
+                scrollTop.value = 0;
+                setTimeout(() => {
+                  scrollIntoView.value = `msg-${lastIndex}`;
+                  scrollTop.value = calculatedScrollTop > 0 ? calculatedScrollTop : 999999;
+                  console.log('第二次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+                }, 50);
+              }, 200);
+            }, 300);
+          }
+        }
+      }).exec();
+    }).exec();
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
