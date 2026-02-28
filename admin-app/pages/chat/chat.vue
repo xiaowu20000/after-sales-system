@@ -256,10 +256,19 @@ async function scrollToBottom() {
     scrollIntoView.value = '';
     await nextTick();
     scrollIntoView.value = `msg-${lastIndex}`;
+    
+    // 延迟清除，避免干扰用户滚动
+    setTimeout(() => {
+      scrollIntoView.value = '';
+    }, 500);
   }
 }
 
 function onScroll(e) {
+  // 用户手动滚动时，清除 scrollIntoView，避免干扰用户滚动
+  if (scrollIntoView.value) {
+    scrollIntoView.value = '';
+  }
   // 可以在这里实现滚动加载更多
 }
 
@@ -325,24 +334,10 @@ async function loadHistory() {
         const totalHeight = messageRects.reduce((sum, rect) => sum + (rect.height || 0), 0);
         console.log('消息总高度:', totalHeight, '消息条数:', messageRects.length);
         
-        // 计算实际的 scrollTop 值
-        // 如果内容高度大于容器高度，计算需要滚动的距离
-        // 如果内容高度小于容器高度，使用一个足够大的值确保滚动到底部（让内容从底部对齐）
-        let calculatedScrollTop;
-        if (totalHeight > containerHeight) {
-          // 内容超出容器，计算滚动距离
-          calculatedScrollTop = totalHeight - containerHeight + 100;
-        } else {
-          // 内容不足填满容器，使用一个足够大的值让内容从底部对齐
-          // 或者直接使用 scroll-into-view 滚动到最后一条消息
-          calculatedScrollTop = 999999; // 使用足够大的值
-        }
-        console.log('计算的 scrollTop:', calculatedScrollTop, '内容高度:', totalHeight, '容器高度:', containerHeight);
-        
-        // 使用 scroll-into-view 滚动到底部
+        // 使用 scroll-into-view 滚动到底部（不使用 scrollTop，避免设置过大值导致无法向上滚动）
         const lastIndex = messageList.value.length - 1;
         if (lastIndex >= 0) {
-          console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`);
+          console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`, '内容高度:', totalHeight, '容器高度:', containerHeight);
           
           // 先置空，再设置，确保触发滚动
           scrollIntoView.value = '';
@@ -350,44 +345,33 @@ async function loadHistory() {
           
           // 延迟设置，确保DOM完全渲染
           setTimeout(() => {
-            // 第一次：先设置 scroll-into-view
+            // 第一次：设置 scroll-into-view
             scrollIntoView.value = `msg-${lastIndex}`;
             console.log('第一次设置 scroll-into-view:', `msg-${lastIndex}`);
-            
-            // 延迟设置 scrollTop
-            setTimeout(() => {
-              scrollTop.value = calculatedScrollTop;
-              console.log('第一次设置 scrollTop:', scrollTop.value);
-            }, 50);
             
             // 第二次：重置再设置，确保滚动生效
             setTimeout(() => {
               scrollIntoView.value = '';
-              scrollTop.value = 0;
               setTimeout(() => {
                 scrollIntoView.value = `msg-${lastIndex}`;
-                scrollTop.value = calculatedScrollTop;
-                console.log('第二次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+                console.log('第二次设置 scroll-into-view:', `msg-${lastIndex}`);
               }, 30);
             }, 200);
             
-            // 第三次：再次尝试，确保滚动到底部
+            // 第三次：再次尝试
             setTimeout(() => {
               scrollIntoView.value = '';
-              scrollTop.value = 0;
               setTimeout(() => {
                 scrollIntoView.value = `msg-${lastIndex}`;
-                scrollTop.value = calculatedScrollTop;
-                console.log('第三次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+                console.log('第三次设置 scroll-into-view:', `msg-${lastIndex}`);
               }, 30);
             }, 500);
             
-            // 第四次：最后尝试
+            // 滚动完成后，清除 scrollIntoView，让用户可以自由滚动
             setTimeout(() => {
-              scrollIntoView.value = `msg-${lastIndex}`;
-              scrollTop.value = calculatedScrollTop;
-              console.log('第四次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
-            }, 800);
+              scrollIntoView.value = '';
+              console.log('清除 scroll-into-view，允许自由滚动');
+            }, 1000);
           }, 300);
         }
       }
