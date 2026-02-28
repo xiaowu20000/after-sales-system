@@ -35,6 +35,7 @@
     <scroll-view 
       scroll-y 
       class="message-list" 
+      :scroll-top="scrollTop"
       :scroll-into-view="scrollIntoView"
       @scroll="onScroll"
       ref="messageScrollRef"
@@ -146,6 +147,7 @@ const messageList = ref([]);
 const quickPhraseList = ref([]);
 const showQuickPanel = ref(false);
 const scrollIntoView = ref('');
+const scrollTop = ref(0);
 const messageScrollRef = ref(null);
 const userEmail = ref('');
 const showUserMenuDialog = ref(false);
@@ -245,13 +247,14 @@ async function appendMessage(message) {
 async function scrollToBottom() {
   if (messageList.value.length === 0) return;
   
-  // 使用 scroll-into-view 为主，先置空再设置，确保触发滚动
-  scrollIntoView.value = '';
   await nextTick();
   
-  // 设置最后一条消息的 id，触发滚动
+  // 使用 scroll-into-view 滚动到底部
   const lastIndex = messageList.value.length - 1;
   if (lastIndex >= 0) {
+    // 先置空，再设置，确保触发滚动
+    scrollIntoView.value = '';
+    await nextTick();
     scrollIntoView.value = `msg-${lastIndex}`;
   }
 }
@@ -301,37 +304,37 @@ async function loadHistory() {
 
     // 等待 DOM 更新后滚动到底部
     await nextTick();
+    await nextTick(); // 多等待一次，确保DOM完全渲染
     
-    // 使用 scroll-into-view 为主，先置空再设置，确保触发滚动
-    scrollIntoView.value = '';
-    await nextTick();
-    
-    // 设置最后一条消息的 id，触发滚动到底部
+    // 使用 scroll-top 和 scroll-into-view 双重方式滚动到底部
     const lastIndex = messageList.value.length - 1;
     if (lastIndex >= 0) {
       console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`);
       
-      // 多次尝试滚动，确保在不同端都能生效
-      scrollIntoView.value = `msg-${lastIndex}`;
+      // 先设置一个很大的 scrollTop 值
+      scrollTop.value = 999999;
       
-      // 延迟触发，确保DOM完全渲染
+      // 同时使用 scroll-into-view
+      scrollIntoView.value = '';
+      await nextTick();
+      
+      // 延迟设置，确保DOM完全渲染
       setTimeout(() => {
-        scrollIntoView.value = '';
         scrollIntoView.value = `msg-${lastIndex}`;
-        console.log('第一次延迟滚动，设置:', `msg-${lastIndex}`);
+        scrollTop.value = 999999;
+        console.log('第一次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+        
+        // 再次延迟，确保滚动生效（某些端需要）
+        setTimeout(() => {
+          scrollIntoView.value = '';
+          scrollTop.value = 0;
+          setTimeout(() => {
+            scrollIntoView.value = `msg-${lastIndex}`;
+            scrollTop.value = 999999;
+            console.log('第二次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+          }, 10);
+        }, 100);
       }, 100);
-      
-      setTimeout(() => {
-        scrollIntoView.value = '';
-        scrollIntoView.value = `msg-${lastIndex}`;
-        console.log('第二次延迟滚动，设置:', `msg-${lastIndex}`);
-      }, 300);
-      
-      setTimeout(() => {
-        scrollIntoView.value = '';
-        scrollIntoView.value = `msg-${lastIndex}`;
-        console.log('第三次延迟滚动，设置:', `msg-${lastIndex}`);
-      }, 600);
     }
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
