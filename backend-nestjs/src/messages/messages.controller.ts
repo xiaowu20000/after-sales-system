@@ -55,15 +55,15 @@ export class MessagesController {
     return this.messagesService.update(id, updateMessageDto);
   }
 
-  @Delete(':id')
-  @Roles(UserRole.ADMIN)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.messagesService.remove(id);
-  }
-
   @Delete('peer/:peerId')
   @Roles(UserRole.ADMIN)
   removeByPeer(@Req() req: any, @Param('peerId', ParseIntPipe) peerId: number) {
     return this.messagesService.removeByPeerId(Number(req.user.userId), peerId);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.messagesService.remove(id);
   }
 }

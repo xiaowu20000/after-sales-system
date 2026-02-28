@@ -203,6 +203,30 @@ function getUserDisplayName() {
   return `User #${peerId.value}`;
 }
 
+// 清空当前用户聊天记录
+async function handleClearChatHistory() {
+  showActionMenu.value = false;
+  uni.showModal({
+    title: '确认清空',
+    content: '确定要清空与此用户的所有聊天记录吗？此操作不可恢复！',
+    confirmColor: '#fa5151',
+    success: async (res) => {
+      if (!res.confirm) return;
+      try {
+        const result = await httpDelete(`/messages/peer/${peerId.value}`);
+        messageList.value = [];
+        uni.showToast({
+          title: `已清空 ${result?.deletedCount ?? 0} 条`,
+          icon: 'success',
+          duration: 2000,
+        });
+      } catch (error) {
+        uni.showToast({ title: '清空失败', icon: 'none' });
+      }
+    },
+  });
+}
+
 // 删除用户
 async function handleDeleteUser() {
   showActionMenu.value = false;
