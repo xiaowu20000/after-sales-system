@@ -8,23 +8,23 @@
       @refresherrefresh="onRefresh"
       @refresherrestore="onRefreshRestore"
     >
-      <view v-if="conversationList.length === 0" class="empty">
+    <view v-if="conversationList.length === 0" class="empty">
         <text>暂无会话</text>
-      </view>
+    </view>
 
-      <view
-        v-for="item in conversationList"
-        :key="item.peerId"
+    <view
+      v-for="item in conversationList"
+      :key="item.peerId"
         class="conversation-item"
-        @click="goToChat(item.peerId)"
-      >
+      @click="goToChat(item.peerId)"
+    >
         <view class="avatar">
           <text class="avatar-text">{{ getUserDisplayName(item.peerId).charAt(0).toUpperCase() }}</text>
-        </view>
+      </view>
         <view class="content">
           <view class="content-top">
             <text class="name">{{ getUserDisplayName(item.peerId) }}</text>
-            <text class="time">{{ toDisplayTime(item.lastMessage?.createdAt) }}</text>
+        <text class="time">{{ toDisplayTime(item.lastMessage?.createdAt) }}</text>
           </view>
           <view class="content-bottom">
             <text class="last-msg">{{ item.lastMessage?.type === 'IMAGE' ? '[图片]' : (item.lastMessage?.content || '') }}</text>
@@ -107,9 +107,9 @@ function toDisplayTime(value) {
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   
   if (days === 0) {
-    const hh = String(date.getHours()).padStart(2, '0');
-    const mm = String(date.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
   } else if (days === 1) {
     return '昨天';
   } else if (days < 7) {
@@ -205,7 +205,7 @@ onUnmounted(() => {
 
 .scroll-container {
   flex: 1;
-  height: 100%;
+  height: 0; /* 配合 flex: 1 使用，确保 scroll-view 有明确高度 */
 }
 
 .empty {
