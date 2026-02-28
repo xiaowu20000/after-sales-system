@@ -297,6 +297,8 @@ async function loadHistory() {
       localKey: toLocalKey(item, index),
     }));
 
+    console.log('消息列表长度:', messageList.value.length);
+
     // 等待 DOM 更新后滚动到底部
     await nextTick();
     
@@ -307,13 +309,29 @@ async function loadHistory() {
     // 设置最后一条消息的 id，触发滚动到底部
     const lastIndex = messageList.value.length - 1;
     if (lastIndex >= 0) {
+      console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`);
+      
+      // 多次尝试滚动，确保在不同端都能生效
       scrollIntoView.value = `msg-${lastIndex}`;
       
-      // 某些端需要延迟触发，再次设置确保滚动生效
+      // 延迟触发，确保DOM完全渲染
       setTimeout(() => {
         scrollIntoView.value = '';
         scrollIntoView.value = `msg-${lastIndex}`;
-      }, 50);
+        console.log('第一次延迟滚动，设置:', `msg-${lastIndex}`);
+      }, 100);
+      
+      setTimeout(() => {
+        scrollIntoView.value = '';
+        scrollIntoView.value = `msg-${lastIndex}`;
+        console.log('第二次延迟滚动，设置:', `msg-${lastIndex}`);
+      }, 300);
+      
+      setTimeout(() => {
+        scrollIntoView.value = '';
+        scrollIntoView.value = `msg-${lastIndex}`;
+        console.log('第三次延迟滚动，设置:', `msg-${lastIndex}`);
+      }, 600);
     }
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
