@@ -350,11 +350,17 @@ async function loadHistory() {
           
           // 延迟设置，确保DOM完全渲染
           setTimeout(() => {
+            // 第一次：先设置 scroll-into-view
             scrollIntoView.value = `msg-${lastIndex}`;
-            scrollTop.value = calculatedScrollTop;
-            console.log('第一次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+            console.log('第一次设置 scroll-into-view:', `msg-${lastIndex}`);
             
-            // 再次延迟，确保滚动生效
+            // 延迟设置 scrollTop
+            setTimeout(() => {
+              scrollTop.value = calculatedScrollTop;
+              console.log('第一次设置 scrollTop:', scrollTop.value);
+            }, 50);
+            
+            // 第二次：重置再设置，确保滚动生效
             setTimeout(() => {
               scrollIntoView.value = '';
               scrollTop.value = 0;
@@ -362,8 +368,26 @@ async function loadHistory() {
                 scrollIntoView.value = `msg-${lastIndex}`;
                 scrollTop.value = calculatedScrollTop;
                 console.log('第二次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
-              }, 50);
+              }, 30);
             }, 200);
+            
+            // 第三次：再次尝试，确保滚动到底部
+            setTimeout(() => {
+              scrollIntoView.value = '';
+              scrollTop.value = 0;
+              setTimeout(() => {
+                scrollIntoView.value = `msg-${lastIndex}`;
+                scrollTop.value = calculatedScrollTop;
+                console.log('第三次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+              }, 30);
+            }, 500);
+            
+            // 第四次：最后尝试
+            setTimeout(() => {
+              scrollIntoView.value = `msg-${lastIndex}`;
+              scrollTop.value = calculatedScrollTop;
+              console.log('第四次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
+            }, 800);
           }, 300);
         }
       }
