@@ -306,25 +306,36 @@ async function loadHistory() {
     await nextTick();
     await nextTick(); // 多等待一次，确保DOM完全渲染
     
-    // 使用 scroll-top 和 scroll-into-view 双重方式滚动到底部
+    // 使用 uni.createSelectorQuery 获取 scroll-view 的实际高度和内容高度
+    const query = uni.createSelectorQuery();
+    query.select('.message-list').boundingClientRect((rect) => {
+      console.log('scroll-view 容器高度:', rect?.height);
+    }).exec();
+    
+    query.selectAll('.message-row').boundingClientRect((rects) => {
+      if (rects && rects.length > 0) {
+        const totalHeight = rects.reduce((sum, rect) => sum + (rect.height || 0), 0);
+        console.log('消息总高度:', totalHeight, '消息条数:', rects.length);
+      }
+    }).exec();
+    
+    // 使用 scroll-into-view 滚动到底部
     const lastIndex = messageList.value.length - 1;
     if (lastIndex >= 0) {
       console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`);
       
-      // 先设置一个很大的 scrollTop 值
-      scrollTop.value = 999999;
-      
-      // 同时使用 scroll-into-view
+      // 先置空，再设置，确保触发滚动
       scrollIntoView.value = '';
+      scrollTop.value = 0;
       await nextTick();
       
-      // 延迟设置，确保DOM完全渲染
+      // 延迟设置，确保DOM完全渲染（uni-app 需要更长的延迟）
       setTimeout(() => {
         scrollIntoView.value = `msg-${lastIndex}`;
         scrollTop.value = 999999;
         console.log('第一次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
         
-        // 再次延迟，确保滚动生效（某些端需要）
+        // 再次延迟，确保滚动生效
         setTimeout(() => {
           scrollIntoView.value = '';
           scrollTop.value = 0;
@@ -332,9 +343,9 @@ async function loadHistory() {
             scrollIntoView.value = `msg-${lastIndex}`;
             scrollTop.value = 999999;
             console.log('第二次设置滚动，scroll-into-view:', `msg-${lastIndex}`, 'scrollTop:', scrollTop.value);
-          }, 10);
-        }, 100);
-      }, 100);
+          }, 50);
+        }, 200);
+      }, 300);
     }
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
@@ -638,6 +649,7 @@ onUnload(() => {
 
 .message-list {
   flex: 1;
+  height: 0; /* 配合 flex: 1 使用，确保有明确高度 */
   padding: 24rpx 0;
   background: #ededed;
   /* 为顶部导航栏留出空间（状态栏高度 + 导航栏高度） */
