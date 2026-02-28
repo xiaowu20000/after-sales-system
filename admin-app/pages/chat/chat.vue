@@ -285,13 +285,6 @@ async function loadHistory() {
       `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
     );
 
-    // 快速自检：确认接口返回最新页
-    // page=1 时应满足：第一个 id > 最后一个 id
-    if (data.items && data.items.length > 0) {
-      const firstId = data.items[0]?.id;
-      const lastId = data.items[data.items.length - 1]?.id;
-      console.log('消息ID检查 - 第一个:', firstId, '最后一个:', lastId, '是否最新页:', firstId > lastId);
-    }
 
     // 后端返回的是按 id DESC（最新的在前），reverse 成时间正序（旧->新，最新的在最后）
     const list = (data.items || []).slice().reverse();
@@ -299,8 +292,6 @@ async function loadHistory() {
       ...item,
       localKey: toLocalKey(item, index),
     }));
-
-    console.log('消息列表长度:', messageList.value.length);
 
     // 暂时取消自动滚动，避免页面卡顿
     // 用户可以手动滚动查看消息
