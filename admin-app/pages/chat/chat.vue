@@ -235,28 +235,27 @@ function toLocalKey(item, index) {
   return `${item.id || 'temp'}-${index}-${item.createdAt || Date.now()}`;
 }
 
-function appendMessage(message) {
+async function appendMessage(message) {
   messageList.value.push({
     ...message,
     localKey: toLocalKey(message, messageList.value.length),
   });
-  nextTick(() => {
-    scrollToBottom();
-  });
+  await nextTick();
+  await scrollToBottom();
 }
 
-function scrollToBottom() {
-  nextTick(() => {
-    if (messageList.value.length > 0) {
-      // 直接设置一个很大的 scrollTop 值，强制滚动到底部
-      scrollTop.value = 999999;
-      // 同时使用 scroll-into-view 作为备用
-      const lastIndex = messageList.value.length - 1;
-      if (lastIndex >= 0) {
-        scrollIntoView.value = `msg-${lastIndex}`;
-      }
-    }
-  });
+async function scrollToBottom() {
+  if (messageList.value.length === 0) return;
+  
+  // 使用 scroll-into-view 为主，先置空再设置，确保触发滚动
+  scrollIntoView.value = '';
+  await nextTick();
+  
+  // 设置最后一条消息的 id，触发滚动
+  const lastIndex = messageList.value.length - 1;
+  if (lastIndex >= 0) {
+    scrollIntoView.value = `msg-${lastIndex}`;
+  }
 }
 
 function onScroll(e) {
@@ -280,10 +279,26 @@ function previewMessageImage(currentUrl) {
 
 async function loadHistory() {
   try {
-    const data = await httpGet(
+    // 先获取第一页数据以获取总数
+    const firstPageData = await httpGet(
       `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
     );
-    // 确保消息按时间顺序排列（从旧到新，最新的在最后）
+    
+    const total = firstPageData?.pagination?.total || 0;
+    const pageSize = 100;
+    
+    // 计算最后一页（如果消息超过100条，获取最后一页；否则使用第一页）
+    let data;
+    if (total > pageSize) {
+      const lastPage = Math.ceil(total / pageSize);
+      data = await httpGet(
+        `/messages?peerId=${Number(peerId.value)}&page=${lastPage}&pageSize=${pageSize}`,
+      );
+    } else {
+      data = firstPageData;
+    }
+    
+    // 后端返回的是按 id DESC（最新的在前），需要 reverse 让最新的在最后
     const list = (data.items || []).slice().reverse();
     messageList.value = list
       .map((item, index) => ({
@@ -291,35 +306,18 @@ async function loadHistory() {
         localKey: toLocalKey(item, index),
       }));
     
-    // 重置滚动位置
-    scrollTop.value = 0;
-    scrollIntoView.value = '';
-    
     // 等待 DOM 更新后滚动到底部
     await nextTick();
     
-    // 使用多次延迟确保 DOM 完全渲染后再滚动
-    setTimeout(() => {
-      // 直接设置一个很大的 scrollTop 值，强制滚动到底部
-      scrollTop.value = 999999;
-    }, 100);
+    // 使用 scroll-into-view 为主，先置空再设置，确保触发滚动
+    scrollIntoView.value = '';
+    await nextTick();
     
-    setTimeout(() => {
-      scrollToBottom();
-    }, 300);
-    
-    setTimeout(() => {
-      scrollToBottom();
-    }, 600);
-    
-    setTimeout(() => {
-      // 最后一次确保滚动到底部
-      const lastIndex = messageList.value.length - 1;
-      if (lastIndex >= 0) {
-        scrollIntoView.value = `msg-${lastIndex}`;
-        scrollTop.value = 999999;
-      }
-    }, 1000);
+    // 设置最后一条消息的 id，触发滚动
+    const lastIndex = messageList.value.length - 1;
+    if (lastIndex >= 0) {
+      scrollIntoView.value = `msg-${lastIndex}`;
+    }
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
