@@ -1,46 +1,113 @@
 <script>
-import { onLaunch, onShow } from '@dcloudio/uni-app';
 import { getSocket, initSocket } from './services/socket.js';
 import { getCurrentUser } from './utils/auth';
 
-// 播放提示音
-function playNotificationSound() {
+// H5: 需要用户首次交互解锁音频，否则不会响
+let h5AudioCtx = null;
+let h5UnlockInited = false;
+
+async function ensureH5AudioUnlocked() {
+  // #ifdef H5
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!h5AudioCtx) h5AudioCtx = new Ctx();
+  if (h5AudioCtx.state === 'suspended') {
+    try {
+      await h5AudioCtx.resume();
+    } catch (e) {
+      // ignore
+    }
+  }
+  return h5AudioCtx;
+  // #endif
+  return null;
+}
+
+function initH5AudioUnlockOnce() {
+  // #ifdef H5
+  if (h5UnlockInited) return;
+  h5UnlockInited = true;
+
+  const unlock = async () => {
+    await ensureH5AudioUnlocked();
+    window.removeEventListener('touchstart', unlock, true);
+    window.removeEventListener('mousedown', unlock, true);
+    window.removeEventListener('keydown', unlock, true);
+  };
+
+  window.addEventListener('touchstart', unlock, true);
+  window.addEventListener('mousedown', unlock, true);
+  window.addEventListener('keydown', unlock, true);
+  // #endif
+}
+
+async function playNotificationSound() {
   // #ifdef H5
   try {
-    // 使用Web Audio API创建提示音
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioContext = await ensureH5AudioUnlocked();
+    if (!audioContext || audioContext.state !== 'running') return;
+
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
-    
+
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = 800; // 频率
-    oscillator.type = 'sine'; // 波形
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-    
+
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.18);
+
     oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.2);
+    oscillator.stop(audioContext.currentTime + 0.18);
   } catch (error) {
-    console.log('Audio not supported:', error);
+    // ignore
   }
   // #endif
-  
+
   // #ifdef APP-PLUS
   try {
-    // App端使用系统提示音
     plus.device.beep();
   } catch (error) {
-    console.log('Beep not supported:', error);
+    // ignore
   }
   // #endif
 }
 
+let boundSocket = null;
+let boundAdminId = null;
+let notifyHandler = null;
+function bindIncomingBeep(socket, adminId) {
+  if (!socket) return;
+  if (boundSocket && boundSocket !== socket) {
+    boundSocket.off('new_message', bindIncomingBeep._handler);
+  }
+  boundSocket = socket;
+  boundAdminId = adminId;
+
+  // 先解绑避免重复绑定
+  if (bindIncomingBeep._handler) {
+    socket.off('new_message', bindIncomingBeep._handler);
+  }
+
+  bindIncomingBeep._handler = (message) => {
+    const s = Number(message?.senderId);
+    const r = Number(message?.receiverId);
+    // 只在“收到消息”时提示（receiver 是管理员，且不是管理员自己发的回显）
+    if (Number(r) === Number(adminId) && Number(s) !== Number(adminId)) {
+      playNotificationSound();
+    }
+  };
+
+  socket.on('new_message', bindIncomingBeep._handler);
+}
+bindIncomingBeep._handler = null;
+
 export default {
   onLaunch: function() {
     console.log('App Launch');
+    initH5AudioUnlockOnce();
     
     // 初始化推送权限（App端）
     // #ifdef APP-PLUS
@@ -64,11 +131,15 @@ export default {
     if (currentUser && currentUser.id) {
       const adminId = Number(currentUser.id);
       const socket = getSocket() || initSocket(adminId);
+
+      // 绑定“收到消息提示音”
+      bindIncomingBeep(socket, adminId);
       
-      // 监听新消息
-      socket.on('new_message', (message) => {
-        // 播放提示音
-        playNotificationSound();
+      // 监听新消息（通知用）
+      if (notifyHandler) {
+        socket.off('new_message', notifyHandler);
+      }
+      notifyHandler = (message) => {
         
         // 如果应用在后台，显示推送通知
         // #ifdef APP-PLUS
@@ -103,7 +174,8 @@ export default {
           });
         }
         // #endif
-      });
+      };
+      socket.on('new_message', notifyHandler);
     }
   },
   
