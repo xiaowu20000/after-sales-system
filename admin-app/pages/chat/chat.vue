@@ -246,32 +246,18 @@ async function appendMessage(message) {
 }
 
 async function scrollToBottom() {
-  if (messageList.value.length === 0) return;
-  
-  await nextTick();
-  
-  // 使用 scroll-into-view 滚动到底部
-  const lastIndex = messageList.value.length - 1;
-  if (lastIndex >= 0) {
-    // 设置自动滚动标志
-    isAutoScrolling.value = true;
-    
-    // 先置空，再设置，确保触发滚动
-    scrollIntoView.value = '';
-    await nextTick();
-    scrollIntoView.value = `msg-${lastIndex}`;
-    
-    // 延迟清除，避免干扰用户滚动
-    setTimeout(() => {
-      scrollIntoView.value = '';
-      isAutoScrolling.value = false;
-    }, 500);
-  }
+  // 暂时取消自动滚动，避免页面卡顿
+  // if (messageList.value.length === 0) return;
+  // await nextTick();
+  // const lastIndex = messageList.value.length - 1;
+  // if (lastIndex >= 0) {
+  //   scrollIntoView.value = `msg-${lastIndex}`;
+  // }
 }
 
 function onScroll(e) {
-  // 如果用户手动滚动（不是自动滚动），清除 scrollIntoView
-  if (!isAutoScrolling.value && scrollIntoView.value) {
+  // 清除 scrollIntoView，避免干扰用户滚动
+  if (scrollIntoView.value) {
     scrollIntoView.value = '';
   }
   // 可以在这里实现滚动加载更多
@@ -316,56 +302,8 @@ async function loadHistory() {
 
     console.log('消息列表长度:', messageList.value.length);
 
-    // 等待 DOM 更新后滚动到底部
-    await nextTick();
-    await nextTick(); // 多等待一次，确保DOM完全渲染
-    
-    // 使用 uni.createSelectorQuery 获取 scroll-view 的实际高度和内容高度，计算正确的 scrollTop
-    const query = uni.createSelectorQuery();
-    
-    // 先获取容器高度
-    query.select('.message-list').boundingClientRect();
-    // 再获取所有消息的高度
-    query.selectAll('.message-row').boundingClientRect();
-    
-    query.exec((res) => {
-      const containerRect = res[0];
-      const messageRects = res[1] || [];
-      
-      const containerHeight = containerRect?.height || 0;
-      console.log('scroll-view 容器高度:', containerHeight);
-      
-      if (messageRects.length > 0) {
-        const totalHeight = messageRects.reduce((sum, rect) => sum + (rect.height || 0), 0);
-        console.log('消息总高度:', totalHeight, '消息条数:', messageRects.length);
-        
-        // 使用 scroll-into-view 滚动到底部
-        const lastIndex = messageList.value.length - 1;
-        if (lastIndex >= 0) {
-          console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`, '内容高度:', totalHeight, '容器高度:', containerHeight);
-          
-          // 设置自动滚动标志
-          isAutoScrolling.value = true;
-          
-          // 先置空，再设置，确保触发滚动
-          scrollIntoView.value = '';
-          scrollTop.value = 0;
-          
-          // 延迟设置，确保DOM完全渲染
-          setTimeout(() => {
-            scrollIntoView.value = `msg-${lastIndex}`;
-            console.log('设置 scroll-into-view:', `msg-${lastIndex}`);
-            
-            // 滚动完成后，清除 scrollIntoView 和标志，让用户可以自由滚动
-            setTimeout(() => {
-              scrollIntoView.value = '';
-              isAutoScrolling.value = false;
-              console.log('清除 scroll-into-view，允许自由滚动');
-            }, 800);
-          }, 300);
-        }
-      }
-    });
+    // 暂时取消自动滚动，避免页面卡顿
+    // 用户可以手动滚动查看消息
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
