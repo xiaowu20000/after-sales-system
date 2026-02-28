@@ -23,6 +23,9 @@
         <view class="action-menu-item" @click="toggleBlacklist">
           <text class="action-menu-text">{{ isBlacklisted ? '移除黑名单' : '加入黑名单' }}</text>
         </view>
+        <view class="action-menu-item" @click="handleClearChatHistory">
+          <text class="action-menu-text">清空聊天记录</text>
+        </view>
         <view class="action-menu-item danger" @click="handleDeleteUser">
           <text class="action-menu-text">删除用户</text>
         </view>

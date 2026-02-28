@@ -21,8 +21,8 @@
           <span class="user-email">{{ userEmail }}</span>
           <button class="logout-btn" @click="handleLogout">Logout</button>
         </div>
-      </div>
-    </header>
+          </div>
+        </header>
 
     <div v-if="isDragOver" class="drag-overlay">
       <div class="drag-overlay-content">
@@ -35,53 +35,53 @@
       </div>
     </div>
 
-    <div ref="messageContainerRef" class="message-list">
-      <div
-        v-for="(message, index) in messageList"
-        :key="`${message.id || 'local'}-${index}`"
+        <div ref="messageContainerRef" class="message-list">
+          <div
+            v-for="(message, index) in messageList"
+            :key="`${message.id || 'local'}-${index}`"
         class="message-row"
-        :class="{ mine: Number(message.senderId) === userId }"
-      >
-        <div class="bubble" :class="{ mine: Number(message.senderId) === userId }">
-          <img
-            v-if="message.type === 'IMAGE'"
-            :src="message.content"
-            class="msg-image"
-            @click="openLightbox(message.content)"
-          />
+            :class="{ mine: Number(message.senderId) === userId }"
+          >
+            <div class="bubble" :class="{ mine: Number(message.senderId) === userId }">
+              <img
+                v-if="message.type === 'IMAGE'"
+                :src="message.content"
+                class="msg-image"
+                @click="openLightbox(message.content)"
+              />
           <span v-else class="message-text">{{ message.content }}</span>
-        </div>
-      </div>
+            </div>
+          </div>
       <div v-if="messageList.length === 0" class="empty-state">
         <p>No messages yet. Start the conversation!</p>
       </div>
-    </div>
+        </div>
 
-    <p v-if="hintText" class="hint">{{ hintText }}</p>
+        <p v-if="hintText" class="hint">{{ hintText }}</p>
 
-    <footer class="composer">
+        <footer class="composer">
       <label class="image-btn" title="Upload image">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           <circle cx="8.5" cy="8.5" r="1.5"></circle>
           <polyline points="21 15 16 10 5 21"></polyline>
         </svg>
-        <input type="file" accept="image/*" class="hidden-file" @change="onSelectImage" />
-      </label>
-      <input
-        v-model.trim="textValue"
-        class="text-input"
-        type="text"
-        placeholder="Type your message..."
-        @keyup.enter="sendText"
-      />
+            <input type="file" accept="image/*" class="hidden-file" @change="onSelectImage" />
+          </label>
+          <input
+            v-model.trim="textValue"
+            class="text-input"
+            type="text"
+            placeholder="Type your message..."
+            @keyup.enter="sendText"
+          />
       <button class="send-btn" @click="sendText" :disabled="!textValue.trim()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="22" y1="2" x2="11" y2="13"></line>
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
         </svg>
       </button>
-    </footer>
+        </footer>
 
     <transition name="fade">
       <div v-if="lightboxVisible" class="lightbox" @click="closeLightbox">
@@ -246,7 +246,7 @@ async function handleImageFile(file) {
 async function onSelectImage(event) {
   const file = event.target.files?.[0];
   await handleImageFile(file);
-  event.target.value = '';
+    event.target.value = '';
 }
 
 // 拖拽处理

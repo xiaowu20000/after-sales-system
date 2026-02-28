@@ -154,4 +154,20 @@ export class MessagesService {
     const message = await this.findOne(id);
     await this.messagesRepository.remove(message);
   }
+
+  async removeByPeerId(userId: number, peerId: number): Promise<{ deletedCount: number }> {
+    const result = await this.messagesRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Message)
+      .where(
+        '(senderId = :userId AND receiverId = :peerId) OR (senderId = :peerId AND receiverId = :userId)',
+        { userId, peerId },
+      )
+      .execute();
+
+    return {
+      deletedCount: result.affected || 0,
+    };
+  }
 }

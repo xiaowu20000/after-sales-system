@@ -82,12 +82,12 @@ export class AuthService implements OnModuleInit {
     });
 
     try {
-      await transporter.sendMail({
+    await transporter.sendMail({
         from: `Nano Banana Pro <${mailConfig.fromEmail}>`,
-        to: email,
+      to: email,
         subject: 'Nano Banana Pro',
-        text: `Your verification code is ${code}. It expires in 10 minutes.`,
-      });
+      text: `Your verification code is ${code}. It expires in 10 minutes.`,
+    });
     } catch (error: any) {
       const errorMessage = error?.message || 'Unknown error';
       if (errorMessage.includes('535') || errorMessage.includes('Login fail')) {

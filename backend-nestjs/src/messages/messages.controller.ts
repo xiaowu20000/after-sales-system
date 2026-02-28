@@ -60,4 +60,10 @@ export class MessagesController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.messagesService.remove(id);
   }
+
+  @Delete('peer/:peerId')
+  @Roles(UserRole.ADMIN)
+  removeByPeer(@Req() req: any, @Param('peerId', ParseIntPipe) peerId: number) {
+    return this.messagesService.removeByPeerId(Number(req.user.userId), peerId);
+  }
 }

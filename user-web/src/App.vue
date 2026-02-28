@@ -87,9 +87,9 @@
                 placeholder="Enter your password" 
                 class="form-input"
               />
-            </div>
+      </div>
             <button class="submit-btn" @click="login">Sign In</button>
-          </div>
+      </div>
 
           <p v-if="hint" class="hint" :class="{ error: hint.includes('failed') || hint.includes('error') || hint.includes('Error') }">
             {{ hint }}
