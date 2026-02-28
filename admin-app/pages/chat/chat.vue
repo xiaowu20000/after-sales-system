@@ -35,7 +35,6 @@
     <scroll-view 
       scroll-y 
       class="message-list" 
-      :scroll-top="scrollTop" 
       :scroll-into-view="scrollIntoView"
       @scroll="onScroll"
       ref="messageScrollRef"
@@ -146,7 +145,6 @@ const inputValue = ref('');
 const messageList = ref([]);
 const quickPhraseList = ref([]);
 const showQuickPanel = ref(false);
-const scrollTop = ref(0);
 const scrollIntoView = ref('');
 const messageScrollRef = ref(null);
 const userEmail = ref('');
@@ -284,6 +282,14 @@ async function loadHistory() {
       `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
     );
 
+    // 快速自检：确认接口返回最新页
+    // page=1 时应满足：第一个 id > 最后一个 id
+    if (data.items && data.items.length > 0) {
+      const firstId = data.items[0]?.id;
+      const lastId = data.items[data.items.length - 1]?.id;
+      console.log('消息ID检查 - 第一个:', firstId, '最后一个:', lastId, '是否最新页:', firstId > lastId);
+    }
+
     // 后端返回的是按 id DESC（最新的在前），reverse 成时间正序（旧->新，最新的在最后）
     const list = (data.items || []).slice().reverse();
     messageList.value = list.map((item, index) => ({
@@ -302,6 +308,12 @@ async function loadHistory() {
     const lastIndex = messageList.value.length - 1;
     if (lastIndex >= 0) {
       scrollIntoView.value = `msg-${lastIndex}`;
+      
+      // 某些端需要延迟触发，再次设置确保滚动生效
+      setTimeout(() => {
+        scrollIntoView.value = '';
+        scrollIntoView.value = `msg-${lastIndex}`;
+      }, 50);
     }
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
