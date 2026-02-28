@@ -279,33 +279,18 @@ function previewMessageImage(currentUrl) {
 
 async function loadHistory() {
   try {
-    // 先获取第一页数据以获取总数
-    const firstPageData = await httpGet(
+    // 后端按 id DESC 排序，page=1 就是最新消息（最新100条）
+    const data = await httpGet(
       `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
     );
-    
-    const total = firstPageData?.pagination?.total || 0;
-    const pageSize = 100;
-    
-    // 计算最后一页（如果消息超过100条，获取最后一页；否则使用第一页）
-    let data;
-    if (total > pageSize) {
-      const lastPage = Math.ceil(total / pageSize);
-      data = await httpGet(
-        `/messages?peerId=${Number(peerId.value)}&page=${lastPage}&pageSize=${pageSize}`,
-      );
-    } else {
-      data = firstPageData;
-    }
-    
-    // 后端返回的是按 id DESC（最新的在前），需要 reverse 让最新的在最后
+
+    // 后端返回的是按 id DESC（最新的在前），reverse 成时间正序（旧->新，最新的在最后）
     const list = (data.items || []).slice().reverse();
-    messageList.value = list
-      .map((item, index) => ({
-        ...item,
-        localKey: toLocalKey(item, index),
-      }));
-    
+    messageList.value = list.map((item, index) => ({
+      ...item,
+      localKey: toLocalKey(item, index),
+    }));
+
     // 等待 DOM 更新后滚动到底部
     await nextTick();
     
@@ -313,7 +298,7 @@ async function loadHistory() {
     scrollIntoView.value = '';
     await nextTick();
     
-    // 设置最后一条消息的 id，触发滚动
+    // 设置最后一条消息的 id，触发滚动到底部
     const lastIndex = messageList.value.length - 1;
     if (lastIndex >= 0) {
       scrollIntoView.value = `msg-${lastIndex}`;
