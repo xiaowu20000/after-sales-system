@@ -3,6 +3,41 @@ import { onLaunch, onShow } from '@dcloudio/uni-app';
 import { getSocket, initSocket } from './services/socket.js';
 import { getCurrentUser } from './utils/auth';
 
+// 播放提示音
+function playNotificationSound() {
+  // #ifdef H5
+  try {
+    // 使用Web Audio API创建提示音
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 800; // 频率
+    oscillator.type = 'sine'; // 波形
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+  } catch (error) {
+    console.log('Audio not supported:', error);
+  }
+  // #endif
+  
+  // #ifdef APP-PLUS
+  try {
+    // App端使用系统提示音
+    plus.device.beep();
+  } catch (error) {
+    console.log('Beep not supported:', error);
+  }
+  // #endif
+}
+
 export default {
   onLaunch: function() {
     console.log('App Launch');
@@ -32,6 +67,9 @@ export default {
       
       // 监听新消息
       socket.on('new_message', (message) => {
+        // 播放提示音
+        playNotificationSound();
+        
         // 如果应用在后台，显示推送通知
         // #ifdef APP-PLUS
         if (plus.os.name === 'Android' || plus.os.name === 'iOS') {

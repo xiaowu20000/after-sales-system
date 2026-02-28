@@ -411,6 +411,41 @@ function bindSocket() {
   socket.on('chat_error', handleSocketError);
 }
 
+// 播放提示音
+function playNotificationSound() {
+  // #ifdef H5
+  try {
+    // 使用Web Audio API创建提示音
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 800; // 频率
+    oscillator.type = 'sine'; // 波形
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+  } catch (error) {
+    console.log('Audio not supported:', error);
+  }
+  // #endif
+  
+  // #ifdef APP-PLUS
+  try {
+    // App端使用系统提示音
+    plus.device.beep();
+  } catch (error) {
+    console.log('Beep not supported:', error);
+  }
+  // #endif
+}
+
 const handleSocketNewMessage = (message) => {
   const s = Number(message.senderId);
   const r = Number(message.receiverId);
@@ -418,6 +453,8 @@ const handleSocketNewMessage = (message) => {
   if ((s === adminId && r === target) || (s === target && r === adminId)) {
     appendMessage(message);
     clearUnread(adminId, target);
+    // 播放提示音
+    playNotificationSound();
   }
 };
 
