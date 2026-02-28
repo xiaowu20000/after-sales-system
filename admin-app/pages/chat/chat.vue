@@ -35,8 +35,6 @@
     <scroll-view 
       scroll-y 
       class="message-list" 
-      :scroll-top="scrollTop"
-      :scroll-into-view="scrollIntoView"
       @scroll="onScroll"
       ref="messageScrollRef"
     >
@@ -146,10 +144,7 @@ const inputValue = ref('');
 const messageList = ref([]);
 const quickPhraseList = ref([]);
 const showQuickPanel = ref(false);
-const scrollIntoView = ref('');
-const scrollTop = ref(0);
 const messageScrollRef = ref(null);
-const isAutoScrolling = ref(false); // 标志：是否正在自动滚动
 const userEmail = ref('');
 const showUserMenuDialog = ref(false);
 const editRemark = ref('');
@@ -256,10 +251,6 @@ async function scrollToBottom() {
 }
 
 function onScroll(e) {
-  // 清除 scrollIntoView，避免干扰用户滚动
-  if (scrollIntoView.value) {
-    scrollIntoView.value = '';
-  }
   // 可以在这里实现滚动加载更多
 }
 
