@@ -149,6 +149,7 @@ const showQuickPanel = ref(false);
 const scrollIntoView = ref('');
 const scrollTop = ref(0);
 const messageScrollRef = ref(null);
+const isAutoScrolling = ref(false); // 标志：是否正在自动滚动
 const userEmail = ref('');
 const showUserMenuDialog = ref(false);
 const editRemark = ref('');
@@ -252,6 +253,9 @@ async function scrollToBottom() {
   // 使用 scroll-into-view 滚动到底部
   const lastIndex = messageList.value.length - 1;
   if (lastIndex >= 0) {
+    // 设置自动滚动标志
+    isAutoScrolling.value = true;
+    
     // 先置空，再设置，确保触发滚动
     scrollIntoView.value = '';
     await nextTick();
@@ -260,13 +264,14 @@ async function scrollToBottom() {
     // 延迟清除，避免干扰用户滚动
     setTimeout(() => {
       scrollIntoView.value = '';
+      isAutoScrolling.value = false;
     }, 500);
   }
 }
 
 function onScroll(e) {
-  // 用户手动滚动时，清除 scrollIntoView，避免干扰用户滚动
-  if (scrollIntoView.value) {
+  // 如果用户手动滚动（不是自动滚动），清除 scrollIntoView
+  if (!isAutoScrolling.value && scrollIntoView.value) {
     scrollIntoView.value = '';
   }
   // 可以在这里实现滚动加载更多
@@ -334,10 +339,13 @@ async function loadHistory() {
         const totalHeight = messageRects.reduce((sum, rect) => sum + (rect.height || 0), 0);
         console.log('消息总高度:', totalHeight, '消息条数:', messageRects.length);
         
-        // 使用 scroll-into-view 滚动到底部（不使用 scrollTop，避免设置过大值导致无法向上滚动）
+        // 使用 scroll-into-view 滚动到底部
         const lastIndex = messageList.value.length - 1;
         if (lastIndex >= 0) {
           console.log('准备滚动到最后一条消息，索引:', lastIndex, 'ID:', `msg-${lastIndex}`, '内容高度:', totalHeight, '容器高度:', containerHeight);
+          
+          // 设置自动滚动标志
+          isAutoScrolling.value = true;
           
           // 先置空，再设置，确保触发滚动
           scrollIntoView.value = '';
@@ -345,33 +353,15 @@ async function loadHistory() {
           
           // 延迟设置，确保DOM完全渲染
           setTimeout(() => {
-            // 第一次：设置 scroll-into-view
             scrollIntoView.value = `msg-${lastIndex}`;
-            console.log('第一次设置 scroll-into-view:', `msg-${lastIndex}`);
+            console.log('设置 scroll-into-view:', `msg-${lastIndex}`);
             
-            // 第二次：重置再设置，确保滚动生效
+            // 滚动完成后，清除 scrollIntoView 和标志，让用户可以自由滚动
             setTimeout(() => {
               scrollIntoView.value = '';
-              setTimeout(() => {
-                scrollIntoView.value = `msg-${lastIndex}`;
-                console.log('第二次设置 scroll-into-view:', `msg-${lastIndex}`);
-              }, 30);
-            }, 200);
-            
-            // 第三次：再次尝试
-            setTimeout(() => {
-              scrollIntoView.value = '';
-              setTimeout(() => {
-                scrollIntoView.value = `msg-${lastIndex}`;
-                console.log('第三次设置 scroll-into-view:', `msg-${lastIndex}`);
-              }, 30);
-            }, 500);
-            
-            // 滚动完成后，清除 scrollIntoView，让用户可以自由滚动
-            setTimeout(() => {
-              scrollIntoView.value = '';
+              isAutoScrolling.value = false;
               console.log('清除 scroll-into-view，允许自由滚动');
-            }, 1000);
+            }, 800);
           }, 300);
         }
       }
