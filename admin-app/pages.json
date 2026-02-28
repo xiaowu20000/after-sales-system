@@ -16,7 +16,8 @@
     {
       "path": "pages/chat/chat",
       "style": {
-        "navigationBarTitleText": "聊天详情"
+        "navigationBarTitleText": "聊天详情",
+        "navigationStyle": "custom"
       }
     },
     {

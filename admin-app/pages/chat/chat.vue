@@ -1,12 +1,17 @@
 <template>
   <view class="page">
-    <view class="top-bar">
-      <view class="user-info" @click="showUserMenu">
-        <text class="user-title">{{ getUserDisplayName() }}</text>
-        <text class="user-subtitle" v-if="userEmail && userEmail !== getUserDisplayName()">{{ userEmail }}</text>
+    <!-- 自定义导航栏 -->
+    <view class="custom-navbar">
+      <view class="navbar-left">
+        <view class="navbar-back" @click="goBack">
+          <text class="back-icon">‹</text>
+        </view>
       </view>
-      <view class="top-actions">
-        <view class="menu-btn" @click.stop="showActionMenu = !showActionMenu">
+      <view class="navbar-center">
+        <text class="navbar-title">{{ getUserDisplayName() }}</text>
+      </view>
+      <view class="navbar-right">
+        <view class="navbar-menu-btn" @click.stop="showActionMenu = !showActionMenu">
           <text class="menu-icon">⋮</text>
         </view>
       </view>
@@ -283,15 +288,19 @@ async function loadHistory() {
         localKey: toLocalKey(item, index),
       }));
     // 多次尝试滚动到底部，确保 DOM 已完全渲染
+    await nextTick();
     setTimeout(() => {
       scrollToBottom();
-    }, 100);
+    }, 50);
     setTimeout(() => {
       scrollToBottom();
-    }, 300);
+    }, 200);
     setTimeout(() => {
       scrollToBottom();
     }, 500);
+    setTimeout(() => {
+      scrollToBottom();
+    }, 800);
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
@@ -302,9 +311,17 @@ async function loadPeer() {
     const user = await httpGet(`/users/${peerId.value}`);
     isBlacklisted.value = Boolean(user.isBlacklisted);
     userEmail.value = user.email || '';
+    // 设置导航栏标题为用户邮箱
+    uni.setNavigationBarTitle({
+      title: getUserDisplayName()
+    });
   } catch (error) {
     uni.showToast({ title: '用户不存在', icon: 'none' });
   }
+}
+
+function goBack() {
+  uni.navigateBack();
 }
 
 async function loadQuickPhrases() {
@@ -509,48 +526,87 @@ onUnload(() => {
   flex-direction: column;
 }
 
-.top-bar {
+/* 自定义导航栏 */
+.custom-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 24rpx 32rpx;
+  justify-content: space-between;
+  min-height: 88rpx;
+  padding: 0 32rpx;
   background: #fff;
   border-bottom: 1rpx solid #e5e5e5;
+  /* 适配状态栏高度 */
+  padding-top: env(safe-area-inset-top);
+  box-sizing: border-box;
 }
 
-.user-info {
+.navbar-left {
+  width: 80rpx;
+}
+
+.navbar-back {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-icon {
+  font-size: 48rpx;
+  font-weight: 300;
+  color: #191919;
+  line-height: 1;
+}
+
+.navbar-center {
   flex: 1;
+  text-align: center;
+  padding: 0 20rpx;
 }
 
-.user-title {
-  display: block;
+.navbar-title {
   font-size: 32rpx;
   font-weight: 600;
   color: #191919;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.user-subtitle {
-  display: block;
-  font-size: 24rpx;
-  color: #999;
-  margin-top: 4rpx;
+.navbar-right {
+  width: 80rpx;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.top-actions {
+.navbar-menu-btn {
+  width: 64rpx;
+  height: 64rpx;
   display: flex;
   align-items: center;
-  gap: 24rpx;
+  justify-content: center;
 }
 
-.action-link {
-  font-size: 26rpx;
-  color: #1e88e5;
+.menu-icon {
+  font-size: 40rpx;
+  color: #191919;
+  line-height: 1;
 }
 
 .message-list {
   flex: 1;
   padding: 24rpx 0;
   background: #ededed;
+  /* 为顶部导航栏留出空间（状态栏高度 + 导航栏高度） */
+  margin-top: calc(env(safe-area-inset-top) + 88rpx);
+  /* 为底部输入栏留出空间 */
+  padding-bottom: calc(96rpx + env(safe-area-inset-bottom));
 }
 
 .message-row {
@@ -614,10 +670,19 @@ onUnload(() => {
 }
 
 .quick-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 998;
   height: 400rpx;
   background: #fff;
   border-top: 1rpx solid #e5e5e5;
   padding: 24rpx 32rpx;
+  /* 在输入栏上方显示 */
+  bottom: calc(96rpx + env(safe-area-inset-bottom));
+  /* 适配底部安全区域 */
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
 }
 
 .quick-head {
@@ -657,12 +722,19 @@ onUnload(() => {
 }
 
 .input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
   display: flex;
   align-items: center;
   gap: 16rpx;
   padding: 16rpx 32rpx;
   background: #fff;
   border-top: 1rpx solid #e5e5e5;
+  /* 适配底部安全区域 */
+  padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
 }
 
 .input-left {
