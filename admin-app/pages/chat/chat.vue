@@ -283,26 +283,43 @@ async function loadHistory() {
     const data = await httpGet(
       `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
     );
+    // 确保消息按时间顺序排列（从旧到新，最新的在最后）
     const list = (data.items || []).slice().reverse();
     messageList.value = list
       .map((item, index) => ({
         ...item,
         localKey: toLocalKey(item, index),
       }));
-    // 多次尝试滚动到底部，确保 DOM 已完全渲染
+    
+    // 重置滚动位置
+    scrollTop.value = 0;
+    scrollIntoView.value = '';
+    
+    // 等待 DOM 更新后滚动到底部
     await nextTick();
+    
+    // 使用多次延迟确保 DOM 完全渲染后再滚动
+    setTimeout(() => {
+      // 直接设置一个很大的 scrollTop 值，强制滚动到底部
+      scrollTop.value = 999999;
+    }, 100);
+    
     setTimeout(() => {
       scrollToBottom();
-    }, 50);
+    }, 300);
+    
     setTimeout(() => {
       scrollToBottom();
-    }, 200);
+    }, 600);
+    
     setTimeout(() => {
-      scrollToBottom();
-    }, 500);
-    setTimeout(() => {
-      scrollToBottom();
-    }, 800);
+      // 最后一次确保滚动到底部
+      const lastIndex = messageList.value.length - 1;
+      if (lastIndex >= 0) {
+        scrollIntoView.value = `msg-${lastIndex}`;
+        scrollTop.value = 999999;
+      }
+    }, 1000);
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
