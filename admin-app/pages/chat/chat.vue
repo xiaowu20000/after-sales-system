@@ -248,11 +248,13 @@ function appendMessage(message) {
 function scrollToBottom() {
   nextTick(() => {
     if (messageList.value.length > 0) {
-      // 使用 scroll-into-view 滚动到最后一条消息
-      const lastIndex = messageList.value.length - 1;
-      scrollIntoView.value = `msg-${lastIndex}`;
-      // 同时设置一个很大的 scrollTop 值作为备用
+      // 直接设置一个很大的 scrollTop 值，强制滚动到底部
       scrollTop.value = 999999;
+      // 同时使用 scroll-into-view 作为备用
+      const lastIndex = messageList.value.length - 1;
+      if (lastIndex >= 0) {
+        scrollIntoView.value = `msg-${lastIndex}`;
+      }
     }
   });
 }
@@ -470,8 +472,10 @@ const handleSocketNewMessage = (message) => {
   if ((s === adminId && r === target) || (s === target && r === adminId)) {
     appendMessage(message);
     clearUnread(adminId, target);
-    // 播放提示音
-    playNotificationSound();
+    // 只在收到消息时播放提示音（不是自己发送的消息）
+    if (r === adminId && s !== adminId) {
+      playNotificationSound();
+    }
   }
 };
 
