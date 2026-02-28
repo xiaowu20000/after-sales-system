@@ -30,6 +30,12 @@
       "style": {
         "navigationBarTitleText": "邮箱配置"
       }
+    },
+    {
+      "path": "pages/settings/quick-phrases",
+      "style": {
+        "navigationBarTitleText": "快捷短语管理"
+      }
     }
   ],
   "globalStyle": {

@@ -18,6 +18,10 @@
         <text class="menu-label">导入快捷短语</text>
         <text class="menu-arrow">></text>
       </view>
+      <view class="menu-item" @click="manageQuickPhrases">
+        <text class="menu-label">管理快捷短语</text>
+        <text class="menu-arrow">></text>
+      </view>
     </view>
 
     <view class="section">
@@ -46,7 +50,7 @@
 import { onLoad } from '@dcloudio/uni-app';
 import { closeSocket } from '../../services/socket.js';
 import { clearAuth } from '../../utils/auth';
-import { httpPost, httpDelete } from '../../utils/http';
+import { httpPost, httpDelete, httpGet } from '../../utils/http';
 
 function openMailConfig() {
   uni.navigateTo({ url: '/pages/settings/mail-config' });
@@ -423,6 +427,11 @@ function handleLogout() {
       }
     },
   });
+}
+
+// 管理快捷短语
+function manageQuickPhrases() {
+  uni.navigateTo({ url: '/pages/settings/quick-phrases' });
 }
 
 onLoad(() => {
