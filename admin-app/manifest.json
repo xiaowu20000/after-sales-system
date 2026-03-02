@@ -1,6 +1,6 @@
 {
-    "name" : "admin-app",
-    "appid" : "",
+    "name" : "梦想AIGC售后端",
+    "appid" : "__UNI__1ADF4E3",
     "description" : "",
     "versionName" : "1.0.0",
     "versionCode" : "100",
@@ -41,7 +41,9 @@
                 ]
             },
             /* ios打包配置 */
-            "ios" : {},
+            "ios" : {
+                "dSYMs" : false
+            },
             /* SDK配置 */
             "sdkConfigs" : {}
         }

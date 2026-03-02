@@ -1,6 +1,6 @@
-<template>
+﻿<template>
   <view class="page">
-    <!-- 自定义导航栏 -->
+    <!-- 鑷畾涔夊鑸爮 -->
     <view class="custom-navbar">
       <view class="navbar-left">
         <view class="navbar-back" @click="goBack">
@@ -17,7 +17,7 @@
       </view>
     </view>
 
-    <!-- 操作菜单 -->
+    <!-- 鎿嶄綔鑿滃崟 -->
     <view v-if="showActionMenu" class="action-menu-mask" @click="showActionMenu = false">
       <view class="action-menu" @click.stop>
         <view class="action-menu-item" @click="toggleBlacklist">
@@ -38,6 +38,8 @@
     <scroll-view 
       scroll-y 
       class="message-list" 
+      :scroll-into-view="scrollAnchorId"
+      :scroll-with-animation="scrollWithAnimation"
       @scroll="onScroll"
       ref="messageScrollRef"
     >
@@ -55,6 +57,7 @@
             class="msg-image"
             :src="item.content"
             mode="widthFix"
+            @load="onMessageImageLoad"
             @click="previewMessageImage(item.content)"
           />
         </view>
@@ -100,7 +103,7 @@
       </view>
     </view>
 
-    <!-- 用户菜单弹窗 -->
+    <!-- 鐢ㄦ埛鑿滃崟寮圭獥 -->
     <view v-if="showUserMenuDialog" class="dialog-mask" @click="showUserMenuDialog = false">
       <view class="dialog-content" @click.stop>
         <view class="dialog-title">用户信息</view>
@@ -109,7 +112,7 @@
           <input 
             v-model="editRemark" 
             class="dialog-input" 
-            placeholder="输入备注名称"
+            placeholder="输入备注名称" 
             @confirm="saveRemark"
           />
         </view>
@@ -131,7 +134,7 @@
 
 <script setup>
 import { ref, nextTick } from 'vue';
-import { onLoad, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onReady, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '../../config';
 import { getSocket, initSocket, sendSocketMessage } from '../../services/socket.js';
 import { clearUnread, setActiveChatPeer } from '../../utils/chat-state';
@@ -148,6 +151,10 @@ const messageList = ref([]);
 const quickPhraseList = ref([]);
 const showQuickPanel = ref(false);
 const messageScrollRef = ref(null);
+const scrollAnchorId = ref('');
+const scrollWithAnimation = ref(false);
+const shouldAutoFollow = ref(true);
+const messageViewportHeight = ref(0);
 const userEmail = ref('');
 const showUserMenuDialog = ref(false);
 const editRemark = ref('');
@@ -166,7 +173,7 @@ function loadUserRemark() {
   }
 }
 
-// 保存用户备注
+// 淇濆瓨鐢ㄦ埛澶囨敞
 function saveRemark() {
   try {
     const stored = uni.getStorageSync('user_remarks');
@@ -184,7 +191,7 @@ function saveRemark() {
   }
 }
 
-// 获取用户显示名称
+// 鑾峰彇鐢ㄦ埛鏄剧ず鍚嶇О
 function getUserDisplayName() {
   try {
     const stored = uni.getStorageSync('user_remarks');
@@ -203,12 +210,12 @@ function getUserDisplayName() {
   return `User #${peerId.value}`;
 }
 
-// 清空当前用户聊天记录
+// 娓呯┖褰撳墠鐢ㄦ埛鑱婂ぉ璁板綍
 async function handleClearChatHistory() {
   showActionMenu.value = false;
   uni.showModal({
     title: '确认清空',
-    content: '确定要清空与此用户的所有聊天记录吗？此操作不可恢复！',
+    content: '确定要清空与该用户的所有聊天记录吗？此操作不可恢复。',
     confirmColor: '#fa5151',
     success: async (res) => {
       if (!res.confirm) return;
@@ -227,12 +234,12 @@ async function handleClearChatHistory() {
   });
 }
 
-// 删除用户
+// 鍒犻櫎鐢ㄦ埛
 async function handleDeleteUser() {
   showActionMenu.value = false;
   uni.showModal({
     title: '确认删除',
-    content: '确定要删除此用户吗？此操作不可恢复！',
+    content: '确定要删除该用户吗？此操作不可恢复！',
     confirmColor: '#fa5151',
     success: async (res) => {
       if (res.confirm) {
@@ -263,22 +270,53 @@ async function appendMessage(message) {
     ...message,
     localKey: toLocalKey(message, messageList.value.length),
   });
-  await nextTick();
-  await scrollToBottom();
+  if (shouldAutoFollow.value) {
+    await nextTick();
+    await scrollToBottom(true);
+  }
 }
 
-async function scrollToBottom() {
-  // 暂时取消自动滚动，避免页面卡顿
-  // if (messageList.value.length === 0) return;
-  // await nextTick();
-  // const lastIndex = messageList.value.length - 1;
-  // if (lastIndex >= 0) {
-  //   scrollIntoView.value = `msg-${lastIndex}`;
-  // }
+async function scrollToBottom(animated = false) {
+  if (!messageList.value.length) return;
+  await nextTick();
+  const targetId = `msg-${messageList.value.length - 1}`;
+  scrollWithAnimation.value = !!animated;
+  scrollAnchorId.value = '';
+  await nextTick();
+  scrollAnchorId.value = targetId;
 }
 
 function onScroll(e) {
-  // 可以在这里实现滚动加载更多
+  const detail = e?.detail || {};
+  const top = Number(detail.scrollTop || 0);
+  const total = Number(detail.scrollHeight || 0);
+  const viewport = Number(messageViewportHeight.value || 0);
+
+  if (total > 0 && viewport > 0) {
+    const distanceToBottom = total - viewport - top;
+    shouldAutoFollow.value = distanceToBottom < 80;
+    return;
+  }
+
+  if (Number(detail.deltaY) < 0) {
+    shouldAutoFollow.value = false;
+  }
+}
+
+function onMessageImageLoad() {
+  if (!shouldAutoFollow.value) return;
+  scrollToBottom(false);
+}
+
+function measureMessageViewport() {
+  const query = uni.createSelectorQuery();
+  query.select('.message-list').boundingClientRect();
+  query.exec((res) => {
+    const rect = res?.[0];
+    if (rect?.height) {
+      messageViewportHeight.value = Number(rect.height);
+    }
+  });
 }
 
 function getAllImageUrls() {
@@ -298,21 +336,21 @@ function previewMessageImage(currentUrl) {
 
 async function loadHistory() {
   try {
-    // 后端按 id DESC 排序，page=1 就是最新消息（最新100条）
+    // 鍚庣鎸?id DESC 鎺掑簭锛宲age=1 灏辨槸鏈€鏂版秷鎭紙鏈€鏂?00鏉★級
     const data = await httpGet(
       `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
     );
 
 
-    // 后端返回的是按 id DESC（最新的在前），reverse 成时间正序（旧->新，最新的在最后）
+    // 鍚庣杩斿洖鐨勬槸鎸?id DESC锛堟渶鏂扮殑鍦ㄥ墠锛夛紝reverse 鎴愭椂闂存搴忥紙鏃?>鏂帮紝鏈€鏂扮殑鍦ㄦ渶鍚庯級
     const list = (data.items || []).slice().reverse();
     messageList.value = list.map((item, index) => ({
       ...item,
       localKey: toLocalKey(item, index),
     }));
 
-    // 暂时取消自动滚动，避免页面卡顿
-    // 用户可以手动滚动查看消息
+    shouldAutoFollow.value = true;
+    await scrollToBottom(false);
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
@@ -323,7 +361,7 @@ async function loadPeer() {
     const user = await httpGet(`/users/${peerId.value}`);
     isBlacklisted.value = Boolean(user.isBlacklisted);
     userEmail.value = user.email || '';
-    // 设置导航栏标题为用户邮箱
+    // 璁剧疆瀵艰埅鏍忔爣棰樹负鐢ㄦ埛閭
     uni.setNavigationBarTitle({
       title: getUserDisplayName()
     });
@@ -482,6 +520,10 @@ onLoad((options) => {
   bindSocket();
 });
 
+onReady(() => {
+  measureMessageViewport();
+});
+
 onUnload(() => {
   setActiveChatPeer(adminId, null);
   const socket = getSocket();
@@ -495,13 +537,14 @@ onUnload(() => {
 
 <style scoped>
 .page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #ededed;
   display: flex;
   flex-direction: column;
 }
 
-/* 自定义导航栏 */
+/* 鑷畾涔夊鑸爮 */
 .custom-navbar {
   position: fixed;
   top: 0;
@@ -515,7 +558,7 @@ onUnload(() => {
   padding: 0 32rpx;
   background: #fff;
   border-bottom: 1rpx solid #e5e5e5;
-  /* 适配状态栏高度 */
+  /* 閫傞厤鐘舵€佹爮楂樺害 */
   padding-top: env(safe-area-inset-top);
   box-sizing: border-box;
 }
@@ -575,14 +618,14 @@ onUnload(() => {
 }
 
 .message-list {
-  flex: 1;
-  height: 0; /* 配合 flex: 1 使用，确保有明确高度 */
+  height: calc(100vh - env(safe-area-inset-top) - 88rpx - 96rpx - env(safe-area-inset-bottom));
   padding: 24rpx 0;
   background: #ededed;
-  /* 为顶部导航栏留出空间（状态栏高度 + 导航栏高度） */
+  /* 涓洪《閮ㄥ鑸爮鐣欏嚭绌洪棿锛堢姸鎬佹爮楂樺害 + 瀵艰埅鏍忛珮搴︼級 */
   margin-top: calc(env(safe-area-inset-top) + 88rpx);
-  /* 为底部输入栏留出空间 */
-  padding-bottom: calc(96rpx + env(safe-area-inset-bottom));
+  /* 涓哄簳閮ㄨ緭鍏ユ爮鐣欏嚭绌洪棿 */
+  padding-bottom: 24rpx;
+  box-sizing: border-box;
 }
 
 .message-row {
@@ -655,9 +698,9 @@ onUnload(() => {
   background: #fff;
   border-top: 1rpx solid #e5e5e5;
   padding: 24rpx 32rpx;
-  /* 在输入栏上方显示 */
+  /* 鍦ㄨ緭鍏ユ爮涓婃柟鏄剧ず */
   bottom: calc(96rpx + env(safe-area-inset-bottom));
-  /* 适配底部安全区域 */
+  /* 閫傞厤搴曢儴瀹夊叏鍖哄煙 */
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
 }
 
@@ -709,7 +752,7 @@ onUnload(() => {
   padding: 16rpx 32rpx;
   background: #fff;
   border-top: 1rpx solid #e5e5e5;
-  /* 适配底部安全区域 */
+  /* 閫傞厤搴曢儴瀹夊叏鍖哄煙 */
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
 }
 
@@ -900,3 +943,6 @@ onUnload(() => {
   color: #191919;
 }
 </style>
+
+
+

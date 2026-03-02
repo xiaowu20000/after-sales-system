@@ -2,25 +2,19 @@
 import { getSocket, initSocket } from './services/socket.js';
 import { getCurrentUser } from './utils/auth';
 
-// H5: 需要用户首次交互解锁音频，否则不会响
-let h5AudioCtx = null;
+let notifyAudio = null;
 let h5UnlockInited = false;
+let h5AudioUnlocked = false;
 
-async function ensureH5AudioUnlocked() {
-  // #ifdef H5
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return null;
-  if (!h5AudioCtx) h5AudioCtx = new Ctx();
-  if (h5AudioCtx.state === 'suspended') {
-    try {
-      await h5AudioCtx.resume();
-    } catch (e) {
-      // ignore
-    }
-  }
-  return h5AudioCtx;
-  // #endif
-  return null;
+function ensureNotifyAudio() {
+  if (notifyAudio) return notifyAudio;
+  notifyAudio = uni.createInnerAudioContext();
+  notifyAudio.src = '/static/notify.wav';
+  notifyAudio.autoplay = false;
+  notifyAudio.loop = false;
+  notifyAudio.volume = 1;
+  notifyAudio.obeyMuteSwitch = false;
+  return notifyAudio;
 }
 
 function initH5AudioUnlockOnce() {
@@ -28,8 +22,22 @@ function initH5AudioUnlockOnce() {
   if (h5UnlockInited) return;
   h5UnlockInited = true;
 
-  const unlock = async () => {
-    await ensureH5AudioUnlocked();
+  const unlock = () => {
+    const audio = ensureNotifyAudio();
+    try {
+      audio.play();
+      setTimeout(() => {
+        try {
+          audio.pause();
+          if (typeof audio.seek === 'function') audio.seek(0);
+        } catch (e) {
+          // ignore
+        }
+      }, 30);
+      h5AudioUnlocked = true;
+    } catch (e) {
+      // ignore
+    }
     window.removeEventListener('touchstart', unlock, true);
     window.removeEventListener('mousedown', unlock, true);
     window.removeEventListener('keydown', unlock, true);
@@ -41,38 +49,36 @@ function initH5AudioUnlockOnce() {
   // #endif
 }
 
-async function playNotificationSound() {
+function playNotificationSound() {
+  const audio = ensureNotifyAudio();
+
   // #ifdef H5
-  try {
-    const audioContext = await ensureH5AudioUnlocked();
-    if (!audioContext || audioContext.state !== 'running') return;
-
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-
-    gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.18);
-
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.18);
-  } catch (error) {
-    // ignore
-  }
+  if (!h5AudioUnlocked) return;
   // #endif
 
-  // #ifdef APP-PLUS
   try {
-    plus.device.beep();
-  } catch (error) {
+    audio.stop();
+  } catch (e) {
     // ignore
   }
-  // #endif
+
+  try {
+    if (typeof audio.seek === 'function') audio.seek(0);
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    audio.play();
+  } catch (error) {
+    // #ifdef APP-PLUS
+    try {
+      plus.device.beep();
+    } catch (e) {
+      // ignore
+    }
+    // #endif
+  }
 }
 
 let boundSocket = null;
@@ -125,6 +131,11 @@ export default {
   
   onShow: function() {
     console.log('App Show');
+
+    // #ifdef H5
+    // 某些浏览器在切后台再回来后会重新限制播放，onShow 里再次确保实例存在
+    ensureNotifyAudio();
+    // #endif
     
     // 检查是否有新消息并显示通知
     const currentUser = getCurrentUser();
@@ -181,6 +192,17 @@ export default {
   
   onHide: function() {
     console.log('App Hide');
+  },
+
+  onUnload: function() {
+    if (notifyAudio) {
+      try {
+        notifyAudio.destroy();
+      } catch (e) {
+        // ignore
+      }
+      notifyAudio = null;
+    }
   }
 }
 </script>
