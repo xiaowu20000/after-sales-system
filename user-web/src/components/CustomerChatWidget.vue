@@ -45,7 +45,7 @@
             <div class="bubble" :class="{ mine: Number(message.senderId) === userId }">
               <img
                 v-if="message.type === 'IMAGE'"
-                :src="message.content"
+                :src="ensureHttpsUrl(message.content)"
                 class="msg-image"
                 @click="openLightbox(message.content)"
               />
@@ -85,7 +85,7 @@
 
     <transition name="fade">
       <div v-if="lightboxVisible" class="lightbox" @click="closeLightbox">
-        <img class="lightbox-image" :src="lightboxUrl" @click.stop />
+        <img class="lightbox-image" :src="ensureHttpsUrl(lightboxUrl)" @click.stop />
         <button class="lightbox-close" @click.stop="closeLightbox">×</button>
       </div>
     </transition>
@@ -284,9 +284,17 @@ function mapErrorToFriendlyText(payload) {
   return 'Message could not be sent. Please try again.';
 }
 
+function ensureHttpsUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && url.startsWith('http://')) {
+    return url.replace(/^http:\/\//, 'https://');
+  }
+  return url;
+}
+
 function openLightbox(url) {
   if (!url) return;
-  lightboxUrl.value = url;
+  lightboxUrl.value = ensureHttpsUrl(url);
   lightboxVisible.value = true;
 }
 
