@@ -35,26 +35,34 @@ export class AuthService implements OnModuleInit {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.usersRepository
-      .createQueryBuilder('user')
-      .addSelect('user.passwordHash')
-      .where('user.email = :email', { email: dto.email.toLowerCase() })
-      .getOne();
-    if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    let ok = false;
     try {
-      ok = await compare(dto.password, user.passwordHash);
-    } catch {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-    if (!ok) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
+      const user = await this.usersRepository
+        .createQueryBuilder('user')
+        .addSelect('user.passwordHash')
+        .where('user.email = :email', { email: dto.email.toLowerCase() })
+        .getOne();
+      if (!user || !user.passwordHash) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
 
-    return this.buildAuthResponse(user);
+      let ok = false;
+      try {
+        ok = await compare(dto.password, user.passwordHash);
+      } catch {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+      if (!ok) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      return this.buildAuthResponse(user);
+    } catch (err: any) {
+      if (err?.status && err?.status >= 400 && err?.status < 500) {
+        throw err;
+      }
+      console.error('[auth/login] 500 error:', err?.message ?? err);
+      throw err;
+    }
   }
 
   async sendRegisterCode(dto: SendRegisterCodeDto) {
