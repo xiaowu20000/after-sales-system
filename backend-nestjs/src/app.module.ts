@@ -32,7 +32,7 @@ import { UsersModule } from './users/users.module';
         autoLoadEntities: true,
         synchronize: false,
         migrationsRun: true,
-        migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
+        migrations: [join(__dirname, 'migrations', '*.js')],
       }),
     }),
     AuthModule,
