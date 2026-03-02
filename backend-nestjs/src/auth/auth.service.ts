@@ -40,11 +40,16 @@ export class AuthService implements OnModuleInit {
       .addSelect('user.passwordHash')
       .where('user.email = :email', { email: dto.email.toLowerCase() })
       .getOne();
-    if (!user) {
+    if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const ok = await compare(dto.password, user.passwordHash);
+    let ok = false;
+    try {
+      ok = await compare(dto.password, user.passwordHash);
+    } catch {
+      throw new UnauthorizedException('Invalid email or password');
+    }
     if (!ok) {
       throw new UnauthorizedException('Invalid email or password');
     }
