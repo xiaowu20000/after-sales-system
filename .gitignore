@@ -16,6 +16,9 @@ deploy/certs/
 **/.vite
 **/.cache
 
+# uni-app build output
+**/unpackage/
+
 # IDE
 .idea/
 .vscode/

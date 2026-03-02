@@ -1,26 +1,32 @@
-<script>
+﻿<script>
 import { getSocket, initSocket } from './services/socket.js';
 import { getCurrentUser } from './utils/auth';
 
-// H5: 需要用户首次交互解锁音频，否则不会响
-let h5AudioCtx = null;
+let notifyAudio = null;
 let h5UnlockInited = false;
+let h5AudioUnlocked = false;
+let boundSocket = null;
+let notifyHandler = null;
 
-async function ensureH5AudioUnlocked() {
-  // #ifdef H5
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return null;
-  if (!h5AudioCtx) h5AudioCtx = new Ctx();
-  if (h5AudioCtx.state === 'suspended') {
+function ensureNotifyAudio() {
+  if (notifyAudio) return notifyAudio;
+  notifyAudio = uni.createInnerAudioContext();
+  notifyAudio.src = '/static/notify.wav';
+  // #ifdef APP-PLUS
+  notifyAudio.onError(() => {
+    // 某些机型/打包环境下需使用 _www 前缀
     try {
-      await h5AudioCtx.resume();
+      notifyAudio.src = '_www/static/notify.wav';
     } catch (e) {
       // ignore
     }
-  }
-  return h5AudioCtx;
+  });
   // #endif
-  return null;
+  notifyAudio.autoplay = false;
+  notifyAudio.loop = false;
+  notifyAudio.volume = 1;
+  notifyAudio.obeyMuteSwitch = false;
+  return notifyAudio;
 }
 
 function initH5AudioUnlockOnce() {
@@ -28,8 +34,25 @@ function initH5AudioUnlockOnce() {
   if (h5UnlockInited) return;
   h5UnlockInited = true;
 
-  const unlock = async () => {
-    await ensureH5AudioUnlocked();
+  const unlock = () => {
+    const audio = ensureNotifyAudio();
+    try {
+      const maybePromise = audio.play();
+      if (maybePromise && typeof maybePromise.catch === 'function') {
+        maybePromise.catch(() => {});
+      }
+      setTimeout(() => {
+        try {
+          audio.pause();
+          if (typeof audio.seek === 'function') audio.seek(0);
+        } catch (e) {
+          // ignore
+        }
+      }, 30);
+      h5AudioUnlocked = true;
+    } catch (e) {
+      // ignore
+    }
     window.removeEventListener('touchstart', unlock, true);
     window.removeEventListener('mousedown', unlock, true);
     window.removeEventListener('keydown', unlock, true);
@@ -41,148 +64,183 @@ function initH5AudioUnlockOnce() {
   // #endif
 }
 
-async function playNotificationSound() {
-  // #ifdef H5
+function requestAndroidNotificationPermission() {
+  // #ifdef APP-PLUS
   try {
-    const audioContext = await ensureH5AudioUnlocked();
-    if (!audioContext || audioContext.state !== 'running') return;
+    if (plus.os.name !== 'Android') return;
+    const Build = plus.android.importClass('android.os.Build');
+    if (Number(Build.VERSION.SDK_INT) < 33) return;
 
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-
-    gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.18);
-
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.18);
-  } catch (error) {
-    // ignore
+    plus.android.requestPermissions(
+      ['android.permission.POST_NOTIFICATIONS'],
+      (result) => {
+        console.log('POST_NOTIFICATIONS permission:', result);
+      },
+      (error) => {
+        console.log('POST_NOTIFICATIONS permission failed:', error);
+      }
+    );
+  } catch (e) {
+    console.log('request notification permission error:', e);
   }
   // #endif
+}
+
+function createSystemNotification(message, senderId) {
+  // #ifdef APP-PLUS
+  try {
+    if (!plus.push || typeof plus.push.createMessage !== 'function') return;
+    plus.push.createMessage(
+      message?.content || '[新消息]',
+      JSON.stringify({ senderId }),
+      {
+        title: '新消息',
+        cover: false,
+      }
+    );
+  } catch (e) {
+    console.log('create local push failed:', e);
+  }
+  // #endif
+}
+
+function playNotificationSound() {
+  // #ifdef H5
+  if (!h5AudioUnlocked) return;
+  // #endif
+
+  const audio = ensureNotifyAudio();
+
+  try {
+    audio.stop();
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    if (typeof audio.seek === 'function') audio.seek(0);
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    const playResult = audio.play();
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch(() => {});
+    }
+  } catch (e) {
+    // ignore
+  }
 
   // #ifdef APP-PLUS
   try {
-    plus.device.beep();
-  } catch (error) {
+    plus.device.beep(1);
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    plus.device.vibrate(80);
+  } catch (e) {
     // ignore
   }
   // #endif
 }
 
-let boundSocket = null;
-let boundAdminId = null;
-let notifyHandler = null;
-function bindIncomingBeep(socket, adminId) {
+function bindMessageNotify(socket, adminId) {
   if (!socket) return;
-  if (boundSocket && boundSocket !== socket) {
-    boundSocket.off('new_message', bindIncomingBeep._handler);
+
+  if (boundSocket && boundSocket !== socket && notifyHandler) {
+    boundSocket.off('new_message', notifyHandler);
   }
   boundSocket = socket;
-  boundAdminId = adminId;
 
-  // 先解绑避免重复绑定
-  if (bindIncomingBeep._handler) {
-    socket.off('new_message', bindIncomingBeep._handler);
+  if (notifyHandler) {
+    socket.off('new_message', notifyHandler);
   }
 
-  bindIncomingBeep._handler = (message) => {
-    const s = Number(message?.senderId);
-    const r = Number(message?.receiverId);
-    // 只在“收到消息”时提示（receiver 是管理员，且不是管理员自己发的回显）
-    if (Number(r) === Number(adminId) && Number(s) !== Number(adminId)) {
-      playNotificationSound();
+  notifyHandler = (message) => {
+    const senderId = Number(message?.senderId);
+    const receiverId = Number(message?.receiverId);
+    // 有些后端事件可能缺少 receiverId；只要不是管理员自己发的就提示
+    const isFromOther = !Number.isFinite(senderId) || senderId !== Number(adminId);
+    const isToAdmin = !Number.isFinite(receiverId) || receiverId === Number(adminId);
+    const isIncoming = isFromOther && isToAdmin;
+    if (!isIncoming) return;
+
+    playNotificationSound();
+
+    createSystemNotification(message, senderId);
+
+    // #ifdef H5
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('新消息', {
+        body: message?.content || '您收到一条新消息',
+        icon: '/static/logo.png',
+      });
+    } else if ('Notification' in window && Notification.permission !== 'denied') {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') {
+          new Notification('新消息', {
+            body: message?.content || '您收到一条新消息',
+            icon: '/static/logo.png',
+          });
+        }
+      });
     }
+    // #endif
   };
 
-  socket.on('new_message', bindIncomingBeep._handler);
+  socket.on('new_message', notifyHandler);
 }
-bindIncomingBeep._handler = null;
 
 export default {
-  onLaunch: function() {
+  onLaunch() {
     console.log('App Launch');
     initH5AudioUnlockOnce();
-    
-    // 初始化推送权限（App端）
+    requestAndroidNotificationPermission();
+
     // #ifdef APP-PLUS
-    plus.push.getClientInfo((info) => {
-      console.log('Push client info:', info);
-    });
-    
-    // 监听推送消息
-    plus.push.addEventListener('click', (msg) => {
-      console.log('Push message clicked:', msg);
-      // 可以在这里处理点击推送后的跳转逻辑
-    });
+    // push 模块未勾选时，直接调用 plus.push 会弹系统提示，这里不做强调用
     // #endif
   },
-  
-  onShow: function() {
-    console.log('App Show');
-    
-    // 检查是否有新消息并显示通知
-    const currentUser = getCurrentUser();
-    if (currentUser && currentUser.id) {
-      const adminId = Number(currentUser.id);
-      const socket = getSocket() || initSocket(adminId);
 
-      // 绑定“收到消息提示音”
-      bindIncomingBeep(socket, adminId);
-      
-      // 监听新消息（通知用）
-      if (notifyHandler) {
-        socket.off('new_message', notifyHandler);
+  onShow() {
+    console.log('App Show');
+
+    // #ifdef H5
+    ensureNotifyAudio();
+    // #endif
+
+    const currentUser = getCurrentUser();
+    if (!currentUser?.id) return;
+
+    const adminId = Number(currentUser.id);
+    const socket = getSocket() || initSocket(adminId);
+    bindMessageNotify(socket, adminId);
+  },
+
+  onHide() {
+    console.log('App Hide');
+  },
+
+  onUnload() {
+    if (boundSocket && notifyHandler) {
+      boundSocket.off('new_message', notifyHandler);
+    }
+    notifyHandler = null;
+    boundSocket = null;
+
+    if (notifyAudio) {
+      try {
+        notifyAudio.destroy();
+      } catch (e) {
+        // ignore
       }
-      notifyHandler = (message) => {
-        
-        // 如果应用在后台，显示推送通知
-        // #ifdef APP-PLUS
-        if (plus.os.name === 'Android' || plus.os.name === 'iOS') {
-          // 创建本地通知
-          plus.push.createMessage(
-            message.content || '[新消息]',
-            `来自用户 #${message.senderId}`,
-            {
-              title: '新消息',
-              cover: false
-            }
-          );
-        }
-        // #endif
-        
-        // H5端显示浏览器通知
-        // #ifdef H5
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('新消息', {
-            body: message.content || '您收到一条新消息',
-            icon: '/static/logo.png'
-          });
-        } else if ('Notification' in window && Notification.permission !== 'denied') {
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              new Notification('新消息', {
-                body: message.content || '您收到一条新消息',
-                icon: '/static/logo.png'
-              });
-            }
-          });
-        }
-        // #endif
-      };
-      socket.on('new_message', notifyHandler);
+      notifyAudio = null;
     }
   },
-  
-  onHide: function() {
-    console.log('App Hide');
-  }
-}
+};
 </script>
 
 <style>

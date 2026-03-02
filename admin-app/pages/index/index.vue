@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="page">
     <scroll-view 
       scroll-y 
@@ -9,7 +9,7 @@
       @refresherrestore="onRefreshRestore"
     >
     <view v-if="conversationList.length === 0" class="empty">
-        <text>暂无会话</text>
+        <text>鏆傛棤浼氳瘽</text>
     </view>
 
     <view
@@ -27,7 +27,7 @@
         <text class="time">{{ toDisplayTime(item.lastMessage?.createdAt) }}</text>
           </view>
           <view class="content-bottom">
-            <text class="last-msg">{{ item.lastMessage?.type === 'IMAGE' ? '[图片]' : (item.lastMessage?.content || '') }}</text>
+            <text class="last-msg">{{ item.lastMessage?.type === 'IMAGE' ? '[鍥剧墖]' : (item.lastMessage?.content || '') }}</text>
             <view v-if="item.unreadCount > 0" class="badge">{{ item.unreadCount > 99 ? '99+' : item.unreadCount }}</view>
           </view>
         </view>
@@ -38,9 +38,10 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onHide, onShow } from '@dcloudio/uni-app';
 import { closeSocket, getSocket, initSocket } from '../../services/socket.js';
 import { getActiveChatPeer, increaseUnread } from '../../utils/chat-state';
+import { destroyNotifySound, playNotifySound } from '../../utils/notify';
 import { clearAuth, getCurrentUser } from '../../utils/auth';
 import { httpGet } from '../../utils/http';
 
@@ -48,8 +49,11 @@ const currentUser = ref(getCurrentUser());
 const adminId = Number(currentUser.value?.id || 0);
 const conversations = ref([]);
 const refreshing = ref(false);
-const userEmails = ref({}); // 存储用户邮箱
-const userRemarks = ref({}); // 存储用户备注
+const userEmails = ref({}); // 瀛樺偍鐢ㄦ埛閭
+const userRemarks = ref({}); // 瀛樺偍鐢ㄦ埛澶囨敞
+const unreadSnapshot = ref({});
+const hasLoadedOnce = ref(false);
+let refreshTimer = null;
 
 const conversationList = computed(() => conversations.value || []);
 
@@ -75,7 +79,7 @@ function saveUserRemark(userId, remark) {
   }
 }
 
-// 获取用户显示名称（备注优先，然后是邮箱，最后是 User #ID）
+// 获取用户显示名称（备注优先，其次邮箱，最后 User #ID）
 function getUserDisplayName(userId) {
   if (userRemarks.value[userId]) {
     return userRemarks.value[userId];
@@ -86,7 +90,7 @@ function getUserDisplayName(userId) {
   return `User #${userId}`;
 }
 
-// 加载用户邮箱信息
+// 鍔犺浇鐢ㄦ埛閭淇℃伅
 async function loadUserEmail(userId) {
   if (userEmails.value[userId]) return;
   try {
@@ -95,7 +99,7 @@ async function loadUserEmail(userId) {
       userEmails.value[userId] = user.email;
     }
   } catch (error) {
-    // 忽略错误
+    // 蹇界暐閿欒
   }
 }
 
@@ -111,9 +115,9 @@ function toDisplayTime(value) {
   const mm = String(date.getMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
   } else if (days === 1) {
-    return '昨天';
+    return '鏄ㄥぉ';
   } else if (days < 7) {
-    return `${days}天前`;
+    return `${days}澶╁墠`;
   } else {
     const month = date.getMonth() + 1;
     const day = date.getDate();
@@ -123,15 +127,33 @@ function toDisplayTime(value) {
 
 async function loadConversations() {
   try {
+    const oldUnread = unreadSnapshot.value || {};
     const data = await httpGet('/messages/conversations?page=1&pageSize=50');
-    conversations.value = data.items || [];
+    const items = data.items || [];
+    conversations.value = items;
+
+    const nextUnread = {};
+    let shouldNotifyByPoll = false;
+    for (const item of items) {
+      const key = String(item.peerId);
+      const unread = Number(item.unreadCount || 0);
+      nextUnread[key] = unread;
+      if (hasLoadedOnce.value && unread > Number(oldUnread[key] || 0)) {
+        shouldNotifyByPoll = true;
+      }
+    }
+    unreadSnapshot.value = nextUnread;
+    if (hasLoadedOnce.value && shouldNotifyByPoll) {
+      playNotifySound();
+    }
+    hasLoadedOnce.value = true;
     
-    // 加载所有用户的邮箱
+    // 鍔犺浇鎵€鏈夌敤鎴风殑閭
     for (const item of conversations.value) {
       await loadUserEmail(item.peerId);
     }
   } catch (error) {
-    uni.showToast({ title: '加载失败', icon: 'none' });
+    uni.showToast({ title: '鍔犺浇澶辫触', icon: 'none' });
   }
 }
 
@@ -158,12 +180,13 @@ const handleSocketNewMessage = (message) => {
   const activePeer = getActiveChatPeer(adminId);
   if (Number(message.receiverId) === adminId && Number(activePeer) !== Number(peerId)) {
     increaseUnread(adminId, peerId);
+    playNotifySound();
   }
   loadConversations();
 };
 
 const handleSocketError = () => {
-  uni.showToast({ title: '聊天错误', icon: 'none' });
+  uni.showToast({ title: '鑱婂ぉ閿欒', icon: 'none' });
 };
 
 function bindSocketEvents(socket) {
@@ -185,19 +208,37 @@ onMounted(() => {
 onShow(() => {
   if (!adminId) return;
   loadConversations();
+  if (!refreshTimer) {
+    refreshTimer = setInterval(() => {
+      loadConversations();
+    }, 6000);
+  }
+});
+
+onHide(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
 });
 
 onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
   const socket = getSocket();
   if (!socket) return;
   socket.off('new_message', handleSocketNewMessage);
   socket.off('chat_error', handleSocketError);
+  destroyNotifySound();
 });
 </script>
 
 <style scoped>
 .page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #ededed;
   display: flex;
   flex-direction: column;
@@ -205,7 +246,7 @@ onUnmounted(() => {
 
 .scroll-container {
   flex: 1;
-  height: 0; /* 配合 flex: 1 使用，确保 scroll-view 有明确高度 */
+  height: 100%;
 }
 
 .empty {
@@ -305,3 +346,4 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 </style>
+

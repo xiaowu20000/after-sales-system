@@ -1,14 +1,31 @@
-<template>
+﻿<template>
   <view class="page">
     <view class="header">
       <text class="title">快捷短语管理</text>
     </view>
-    
+
+    <view class="create-card">
+      <input
+        v-model.trim="newPhrase.title"
+        class="input"
+        placeholder="请输入短语标题"
+      />
+      <textarea
+        v-model.trim="newPhrase.content"
+        class="textarea"
+        placeholder="请输入短语内容"
+        maxlength="-1"
+      />
+      <view class="submit-btn" :class="{ disabled: creating }" @click="createPhrase">
+        <text>{{ creating ? '保存中...' : '新增短语' }}</text>
+      </view>
+    </view>
+
     <scroll-view scroll-y class="list-container">
       <view v-if="phraseList.length === 0" class="empty">
         <text>暂无快捷短语</text>
       </view>
-      
+
       <view
         v-for="item in phraseList"
         :key="item.id"
@@ -30,9 +47,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { httpGet, httpDelete } from '../../utils/http';
+import { httpGet, httpDelete, httpPost } from '../../utils/http';
 
 const phraseList = ref([]);
+const creating = ref(false);
+const newPhrase = ref({
+  title: '',
+  content: '',
+});
 
 async function loadPhrases() {
   try {
@@ -40,6 +62,32 @@ async function loadPhrases() {
   } catch (error) {
     uni.showToast({ title: '加载失败', icon: 'none' });
     phraseList.value = [];
+  }
+}
+
+async function createPhrase() {
+  const title = newPhrase.value.title.trim();
+  const content = newPhrase.value.content.trim();
+  if (!title || !content) {
+    uni.showToast({ title: '标题和内容都不能为空', icon: 'none' });
+    return;
+  }
+  if (creating.value) {
+    return;
+  }
+
+  creating.value = true;
+  try {
+    await httpPost('/quick-phrases', { title, content });
+    newPhrase.value.title = '';
+    newPhrase.value.content = '';
+    uni.showToast({ title: '新增成功', icon: 'success' });
+    await loadPhrases();
+  } catch (error) {
+    const errorMsg = error?.message || '新增失败';
+    uni.showToast({ title: errorMsg, icon: 'none' });
+  } finally {
+    creating.value = false;
   }
 }
 
@@ -59,7 +107,7 @@ async function deletePhrase(id) {
           uni.showToast({ title: errorMsg, icon: 'none' });
         }
       }
-    }
+    },
   });
 }
 
@@ -80,6 +128,51 @@ onMounted(() => {
   border-bottom: 1rpx solid #e5e5e5;
 }
 
+.create-card {
+  margin: 24rpx;
+  padding: 24rpx;
+  background: #fff;
+  border-radius: 12rpx;
+}
+
+.input {
+  height: 72rpx;
+  padding: 0 20rpx;
+  margin-bottom: 16rpx;
+  border-radius: 8rpx;
+  background: #f5f5f5;
+  font-size: 28rpx;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 180rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  border-radius: 8rpx;
+  background: #f5f5f5;
+  font-size: 28rpx;
+  margin-bottom: 16rpx;
+}
+
+.submit-btn {
+  height: 72rpx;
+  border-radius: 8rpx;
+  background: #1e88e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submit-btn text {
+  color: #fff;
+  font-size: 28rpx;
+}
+
+.submit-btn.disabled {
+  opacity: 0.6;
+}
+
 .title {
   font-size: 36rpx;
   font-weight: 600;
@@ -87,7 +180,7 @@ onMounted(() => {
 }
 
 .list-container {
-  height: calc(100vh - 120rpx);
+  height: calc(100vh - 520rpx);
 }
 
 .empty {

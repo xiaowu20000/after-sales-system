@@ -118,6 +118,58 @@ const isDragOver = ref(false);
 
 const statusText = computed(() => (socketRef.value?.connected ? 'Connected' : 'Connecting...'));
 
+function createLocalMessage(payload) {
+  return {
+    id: `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+    senderId: props.userId,
+    receiverId: payload.receiverId,
+    content: payload.content,
+    type: payload.type,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+async function waitForSocketConnected(timeoutMs = 10000) {
+  const socket = socketRef.value;
+  if (!socket) {
+    throw new Error('Socket not initialized');
+  }
+  if (socket.connected) {
+    return socket;
+  }
+
+  await new Promise((resolve, reject) => {
+    let timer = null;
+    const cleanup = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      socket.off('connect', onConnect);
+      socket.off('connect_error', onConnectError);
+    };
+    const onConnect = () => {
+      cleanup();
+      resolve();
+    };
+    const onConnectError = (err) => {
+      cleanup();
+      reject(new Error(err?.message || 'socket connect error'));
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('connect_error', onConnectError);
+    socket.connect();
+
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('socket connect timeout'));
+    }, timeoutMs);
+  });
+
+  return socket;
+}
+
 function handleLogout() {
   if (socketRef.value) {
     socketRef.value.disconnect();
@@ -153,8 +205,16 @@ function ensureSocket() {
   if (socketRef.value) return;
 
   const socket = io(props.socketBase, {
-    transports: ['websocket'],
+    transports: ['polling', 'websocket'],
+    upgrade: true,
+    path: '/socket.io/',
+    timeout: 15000,
     auth: { token: props.token },
+    query: { token: props.token },
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 800,
+    reconnectionDelayMax: 3000,
   });
 
   socket.on('new_message', (message) => {
@@ -164,6 +224,21 @@ function ensureSocket() {
       (s === props.userId && r === props.adminId) ||
       (s === props.adminId && r === props.userId)
     ) {
+      if (s === props.userId && r === props.adminId) {
+        const idx = messageList.value.findIndex((item) => {
+          const localId = String(item?.id || '');
+          if (!localId.startsWith('local-')) return false;
+          return (
+            Number(item?.senderId) === props.userId &&
+            Number(item?.receiverId) === props.adminId &&
+            String(item?.type || '') === String(message?.type || '') &&
+            String(item?.content || '') === String(message?.content || '')
+          );
+        });
+        if (idx >= 0) {
+          messageList.value.splice(idx, 1);
+        }
+      }
       messageList.value.push(message);
       scrollToBottom();
     }
@@ -175,6 +250,14 @@ function ensureSocket() {
 
   socket.on('chat_error', (payload) => {
     hintText.value = mapErrorToFriendlyText(payload);
+  });
+
+  socket.on('connect', () => {
+    hintText.value = '';
+  });
+
+  socket.on('connect_error', (err) => {
+    hintText.value = `Connection failed: ${err?.message || 'socket error'}`;
   });
 
   socketRef.value = socket;
@@ -202,16 +285,24 @@ function closeLightbox() {
   lightboxUrl.value = '';
 }
 
-function sendText() {
+async function sendText() {
   if (!textValue.value || !socketRef.value) return;
 
-  hintText.value = '';
-  socketRef.value.emit('send_message', {
+  const payload = {
     receiverId: props.adminId,
     content: textValue.value,
     type: 'TEXT',
-  });
-  textValue.value = '';
+  };
+  try {
+    hintText.value = '';
+    const socket = await waitForSocketConnected();
+    socket.emit('send_message', payload);
+    messageList.value.push(createLocalMessage(payload));
+    textValue.value = '';
+    scrollToBottom();
+  } catch (error) {
+    hintText.value = `Connection failed: ${error?.message || 'socket error'}`;
+  }
 }
 
 // 处理图片文件（通用函数）
@@ -233,13 +324,17 @@ async function handleImageFile(file) {
   try {
     hintText.value = '';
     const imageUrl = await uploadImage(file);
-    socketRef.value?.emit('send_message', {
+    const payload = {
       receiverId: props.adminId,
       content: imageUrl,
       type: 'IMAGE',
-    });
+    };
+    const socket = await waitForSocketConnected();
+    socket.emit('send_message', payload);
+    messageList.value.push(createLocalMessage(payload));
+    scrollToBottom();
   } catch (error) {
-    hintText.value = 'Image send failed. Please retry.';
+    hintText.value = `Image send failed: ${error?.message || 'please retry'}`;
   }
 }
 
