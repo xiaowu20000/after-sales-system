@@ -113,6 +113,7 @@ const messageList = ref([]);
 const messageContainerRef = ref(null);
 const socketRef = ref(null);
 const lightboxVisible = ref(false);
+let pollTimer = null;
 const lightboxUrl = ref('');
 const isDragOver = ref(false);
 
@@ -191,10 +192,17 @@ async function loadHistory() {
     if (!res.ok) return;
 
     const data = await res.json();
-    messageList.value = (data.items || [])
+    const serverItems = (data.items || [])
       .slice()
       .reverse()
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const serverIds = new Set((serverItems || []).map((m) => String(m?.id ?? '')));
+    const localKeep = (messageList.value || []).filter(
+      (m) => String(m?.id ?? '').startsWith('local-') && !serverIds.has(String(m?.id ?? '')),
+    );
+    messageList.value = [...localKeep, ...serverItems].sort(
+      (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime(),
+    );
     scrollToBottom();
   } catch (error) {
     hintText.value = 'Failed to load chat history. Please retry.';
@@ -442,6 +450,7 @@ function onKeydown(event) {
 }
 
 onBeforeUnmount(() => {
+  stopPolling();
   if (socketRef.value) {
     socketRef.value.disconnect();
     socketRef.value = null;
@@ -456,9 +465,26 @@ function onVisibilityChange() {
   }
 }
 
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      loadHistory();
+    }
+  }, 5000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
 onMounted(() => {
   ensureSocket();
   loadHistory();
+  startPolling();
   window.addEventListener('keydown', onKeydown);
   document.addEventListener('visibilitychange', onVisibilityChange);
 });
