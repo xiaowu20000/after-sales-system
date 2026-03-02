@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { QueryFailedError } from 'typeorm';
 import { CreateForbiddenWordDto } from './dto/create-forbidden-word.dto';
 import { UpdateForbiddenWordDto } from './dto/update-forbidden-word.dto';
 import { ForbiddenWord } from './entities/forbidden-word.entity';
@@ -18,7 +23,19 @@ export class ForbiddenWordsService {
     const forbiddenWord = this.forbiddenWordsRepository.create(
       createForbiddenWordDto,
     );
-    return this.forbiddenWordsRepository.save(forbiddenWord);
+    try {
+      return await this.forbiddenWordsRepository.save(forbiddenWord);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err as any)?.code === '23505'
+      ) {
+        throw new ConflictException(
+          `违禁词 "${createForbiddenWordDto.word}" 已存在`,
+        );
+      }
+      throw err;
+    }
   }
 
   async findAll(): Promise<ForbiddenWord[]> {
