@@ -286,8 +286,16 @@ function mapErrorToFriendlyText(payload) {
 
 function ensureHttpsUrl(url) {
   if (!url || typeof url !== 'string') return url;
-  if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && url.startsWith('http://')) {
-    return url.replace(/^http:\/\//, 'https://');
+  if (typeof window === 'undefined') return url;
+  // 若页面是 HTTPS 但图片 URL 为 HTTP（如 IP:port 无 SSL），用当前域名+路径替换，避免 ERR_SSL_PROTOCOL_ERROR
+  if (window.location?.protocol === 'https:' && /^https?:\/\//.test(url)) {
+    try {
+      const u = new URL(url);
+      const origin = window.location.origin;
+      return `${origin}${u.pathname}${u.search}${u.hash}`;
+    } catch {
+      return url;
+    }
   }
   return url;
 }
