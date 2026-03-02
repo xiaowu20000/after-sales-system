@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
     <!-- 鑷畾涔夊鑸爮 -->
     <view class="custom-navbar">
@@ -353,11 +353,18 @@ async function loadHistory() {
 
     // 鍚庣杩斿洖鐨勬槸鎸?id DESC锛堟渶鏂扮殑鍦ㄥ墠锛夛紝reverse 鎴愭椂闂存搴忥紙鏃?>鏂帮紝鏈€鏂扮殑鍦ㄦ渶鍚庯級
     const list = (data.items || []).slice().reverse();
-    messageList.value = list.map((item, index) => ({
+    const newList = list.map((item, index) => ({
       ...item,
       localKey: toLocalKey(item, index),
     }));
-
+    // 保留刚发送或通过 socket 收到的消息（loadHistory 可能在发送后才返回，会覆盖掉已展示的消息）
+    const serverIds = new Set(newList.map((m) => Number(m?.id) || m?.id).filter(Boolean));
+    const toKeep = messageList.value.filter((m) => {
+      const id = m?.id;
+      if (String(id || '').startsWith('local-')) return true;
+      return id != null && !serverIds.has(Number(id) || id);
+    });
+    messageList.value = [...newList, ...toKeep];
     shouldAutoFollow.value = true;
     await scrollToBottom(false);
   } catch (error) {

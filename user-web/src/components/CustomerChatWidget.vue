@@ -254,6 +254,8 @@ function ensureSocket() {
 
   socket.on('connect', () => {
     hintText.value = '';
+    // 连接/重连时拉取历史，补齐断线期间管理员发送的消息
+    loadHistory();
   });
 
   socket.on('connect_error', (err) => {
@@ -445,12 +447,20 @@ onBeforeUnmount(() => {
     socketRef.value = null;
   }
   window.removeEventListener('keydown', onKeydown);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    loadHistory();
+  }
+}
 
 onMounted(() => {
   ensureSocket();
   loadHistory();
   window.addEventListener('keydown', onKeydown);
+  document.addEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 
