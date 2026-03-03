@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
     <scroll-view 
       scroll-y 
@@ -171,7 +171,7 @@ function onRefreshRestore() {
 }
 
 function goToChat(userId) {
-  uni.navigateTo({ url: `/pages/chat/chat?userId=${userId}` });
+  uni.redirectTo({ url: `/pages/chat/chat?userId=${userId}` });
 }
 
 const handleSocketNewMessage = (message) => {

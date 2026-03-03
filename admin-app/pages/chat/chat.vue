@@ -134,7 +134,7 @@
 
 <script setup>
 import { computed, ref, nextTick } from 'vue';
-import { onLoad, onReady, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '../../config';
 import { getSocket, initSocket, sendSocketMessage } from '../../services/socket.js';
 import { clearUnread, setActiveChatPeer } from '../../utils/chat-state';
@@ -413,7 +413,7 @@ async function loadPeer() {
 }
 
 function goBack() {
-  uni.navigateBack();
+  uni.switchTab({ url: '/pages/index/index' });
 }
 
 async function loadQuickPhrases() {
@@ -656,6 +656,20 @@ onLoad((options) => {
 
 onReady(() => {
   measureMessageViewport();
+});
+
+onShow(() => {
+  const target = Number(peerId.value);
+  if (!target) return;
+  const hasWrong = messageList.value.some((m) => {
+    const s = Number(m?.senderId);
+    const r = Number(m?.receiverId);
+    return !((s === adminId && r === target) || (s === target && r === adminId));
+  });
+  if (hasWrong) {
+    messageList.value = [];
+    loadHistory();
+  }
 });
 
 onUnload(() => {
