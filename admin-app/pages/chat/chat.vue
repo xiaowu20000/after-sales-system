@@ -402,20 +402,18 @@ async function sendTextMessage() {
   const text = inputValue.value.trim();
   if (!text || isBlacklisted.value) return;
 
-  try {
-    await sendMessageWithFallback({
-      receiverId: Number(peerId.value),
-      content: text,
-      type: 'TEXT',
-    });
-    inputValue.value = '';
-  } catch (error) {
+  inputValue.value = '';
+  sendMessageWithFallback({
+    receiverId: Number(peerId.value),
+    content: text,
+    type: 'TEXT',
+  }).catch((error) => {
     const reason = String(error?.message || '');
     const msg = /timeout|connect|socket/i.test(reason)
       ? `连接异常:${reason.slice(0, 24)}`
       : `发送失败:${reason.slice(0, 24)}`;
     uni.showToast({ title: msg, icon: 'none' });
-  }
+  });
 }
 
 function useQuickPhrase(item) {
@@ -480,10 +478,16 @@ async function chooseAndSendImage() {
     if (!filePath) return;
 
     const imageUrl = await uploadImage(filePath);
-    await sendMessageWithFallback({
+    sendMessageWithFallback({
       receiverId: Number(peerId.value),
       content: imageUrl,
       type: 'IMAGE',
+    }).catch((error) => {
+      const reason = String(error?.message || '');
+      const msg = /timeout|connect|socket/i.test(reason)
+        ? `连接异常:${reason.slice(0, 24)}`
+        : `发图失败:${reason.slice(0, 24)}`;
+      uni.showToast({ title: msg, icon: 'none' });
     });
   } catch (error) {
     const reason = String(error?.message || '');
@@ -495,27 +499,48 @@ async function chooseAndSendImage() {
 }
 
 async function sendMessageWithFallback(payload) {
+  const optimistic = {
+    id: `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+    senderId: Number(adminId),
+    receiverId: Number(payload.receiverId),
+    content: payload.content,
+    type: payload.type,
+    createdAt: new Date().toISOString(),
+  };
+  appendMessage(optimistic);
+
+  const removeOptimistic = () => {
+    const idx = messageList.value.findIndex((item) => {
+      const localId = String(item?.id || '');
+      if (!localId.startsWith('local-')) return false;
+      return (
+        Number(item?.senderId) === adminId &&
+        Number(item?.receiverId) === Number(payload.receiverId) &&
+        String(item?.type || '') === String(payload?.type || '') &&
+        String(item?.content || '') === String(payload?.content || '')
+      );
+    });
+    if (idx >= 0) messageList.value.splice(idx, 1);
+  };
+
   try {
     await sendSocketMessage(payload);
-    await appendMessage({
-      id: `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
-      senderId: Number(adminId),
-      receiverId: Number(payload.receiverId),
-      content: payload.content,
-      type: payload.type,
-      createdAt: new Date().toISOString(),
-    });
     return;
   } catch (socketError) {
-    // websocket 不可用时降级走 HTTP，保证打包版也可发送
-    const saved = await httpPost('/messages', {
-      senderId: Number(adminId),
-      receiverId: Number(payload.receiverId),
-      content: payload.content,
-      type: payload.type,
-    });
-    if (saved?.id) {
-      await appendMessage(saved);
+    removeOptimistic();
+    try {
+      const saved = await httpPost('/messages', {
+        senderId: Number(adminId),
+        receiverId: Number(payload.receiverId),
+        content: payload.content,
+        type: payload.type,
+      });
+      if (saved?.id) {
+        appendMessage(saved);
+      }
+    } catch (httpError) {
+      uni.showToast({ title: '发送失败', icon: 'none' });
+      throw httpError;
     }
   }
 }
