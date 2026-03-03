@@ -617,6 +617,7 @@ onLoad((options) => {
     uni.showToast({ title: '缺少用户ID', icon: 'none' });
     return;
   }
+  messageList.value = [];
 
   setActiveChatPeer(adminId, peerId.value);
   clearUnread(adminId, peerId.value);
