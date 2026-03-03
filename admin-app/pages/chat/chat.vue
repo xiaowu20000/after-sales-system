@@ -44,7 +44,7 @@
       ref="messageScrollRef"
     >
       <view
-        v-for="(item, index) in messageList"
+        v-for="(item, index) in displayMessages"
         :key="item.localKey"
         :id="`msg-${index}`"
         class="message-row"
@@ -133,7 +133,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue';
+import { computed, ref, nextTick } from 'vue';
 import { onLoad, onReady, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '../../config';
 import { getSocket, initSocket, sendSocketMessage } from '../../services/socket.js';
@@ -161,6 +161,16 @@ const showUserMenuDialog = ref(false);
 const editRemark = ref('');
 const showActionMenu = ref(false);
 let lastConnectErrorAt = 0;
+
+const displayMessages = computed(() => {
+  const target = Number(peerId.value);
+  if (!target) return [];
+  return messageList.value.filter((m) => {
+    const s = Number(m?.senderId);
+    const r = Number(m?.receiverId);
+    return (s === adminId && r === target) || (s === target && r === adminId);
+  });
+});
 
 // 从本地存储加载用户备注
 function loadUserRemark() {
@@ -268,6 +278,12 @@ function toLocalKey(item, index) {
 }
 
 async function appendMessage(message) {
+  const target = Number(peerId.value);
+  const s = Number(message?.senderId);
+  const r = Number(message?.receiverId);
+  if (!((s === adminId && r === target) || (s === target && r === adminId))) {
+    return;
+  }
   const incomingId = Number(message?.id || 0);
   if (incomingId > 0) {
     const exists = messageList.value.some((item) => Number(item?.id || 0) === incomingId);
@@ -286,9 +302,9 @@ async function appendMessage(message) {
 }
 
 async function scrollToBottom(animated = false) {
-  if (!messageList.value.length) return;
+  if (!displayMessages.value.length) return;
   await nextTick();
-  const targetId = `msg-${messageList.value.length - 1}`;
+  const targetId = `msg-${displayMessages.value.length - 1}`;
   scrollWithAnimation.value = !!animated;
   scrollAnchorId.value = '';
   await nextTick();
@@ -329,7 +345,7 @@ function measureMessageViewport() {
 }
 
 function getAllImageUrls() {
-  return messageList.value
+  return displayMessages.value
     .filter((item) => item.type === 'IMAGE')
     .map((item) => item.content);
 }
@@ -344,11 +360,13 @@ function previewMessageImage(currentUrl) {
 }
 
 async function loadHistory() {
+  const requestedPeer = Number(peerId.value);
   try {
     // 鍚庣鎸?id DESC 鎺掑簭锛宲age=1 灏辨槸鏈€鏂版秷鎭紙鏈€鏂?00鏉★級
     const data = await httpGet(
-      `/messages?peerId=${Number(peerId.value)}&page=1&pageSize=100`,
+      `/messages?peerId=${requestedPeer}&page=1&pageSize=100`,
     );
+    if (Number(peerId.value) !== requestedPeer) return;
 
 
     // 鍚庣杩斿洖鐨勬槸鎸?id DESC锛堟渶鏂扮殑鍦ㄥ墠锛夛紝reverse 鎴愭椂闂存搴忥紙鏃?>鏂帮紝鏈€鏂扮殑鍦ㄦ渶鍚庯級
@@ -358,8 +376,15 @@ async function loadHistory() {
       localKey: toLocalKey(item, index),
     }));
     // 保留刚发送或通过 socket 收到的消息（loadHistory 可能在发送后才返回，会覆盖掉已展示的消息）
+    // 仅保留属于当前会话 (admin <-> peerId) 的消息，避免 A 的乐观消息出现在 B 的会话中
     const serverIds = new Set(newList.map((m) => Number(m?.id) || m?.id).filter(Boolean));
+    const isInCurrentConversation = (m) => {
+      const s = Number(m?.senderId);
+      const r = Number(m?.receiverId);
+      return (s === adminId && r === requestedPeer) || (s === requestedPeer && r === adminId);
+    };
     const toKeep = messageList.value.filter((m) => {
+      if (!isInCurrentConversation(m)) return false;
       const id = m?.id;
       if (String(id || '').startsWith('local-')) return true;
       return id != null && !serverIds.has(Number(id) || id);
@@ -368,6 +393,7 @@ async function loadHistory() {
     shouldAutoFollow.value = true;
     await scrollToBottom(false);
   } catch (error) {
+    if (Number(peerId.value) !== requestedPeer) return;
     uni.showToast({ title: '加载失败', icon: 'none' });
   }
 }
